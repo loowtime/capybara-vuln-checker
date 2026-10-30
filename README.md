@@ -43,7 +43,7 @@ entfernt und mit **Temporäres Add-on laden** erneut geladen werden.
   Ergebnisse sind Hinweise, kein Beweis, dass das konkrete System verwundbar
   ist; ebenso beweist ein leerer Befund keine Sicherheit. CVSS bewertet die
   Schwachstelle allgemein, nicht die tatsächliche Konfiguration der Website.
-- Pro Produkt werden höchstens die 100 neuesten NVD-Einträge ausgewertet.
+- Pro Produkt werden höchstens die ersten 100 NVD-Ergebnisse ausgewertet.
 - NVD-Anfragen laufen nacheinander mit Abstand, um die öffentliche API nicht
   durch parallele Abfragen zu überlasten; mehrere erkannte Produkte können
   deshalb etwas länger brauchen.

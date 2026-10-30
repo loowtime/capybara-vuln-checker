@@ -610,7 +610,7 @@ function renderServer(headers, inspection) {
       const note = document.createElement("p");
       note.className = "assessment";
       note.textContent = result.totalResults > 100
-        ? `${result.totalResults} NVD-Einträge für diese Produkt-/Versions-Kombination; die ersten 100 (nach Veröffentlichungsdatum) geprüft.`
+        ? `${result.totalResults} NVD-Einträge für diese Produkt-/Versions-Kombination; die ersten 100 NVD-Ergebnisse geprüft.`
         : `${result.totalResults} NVD-Einträge für diese Produkt-/Versions-Kombination geprüft.`;
       box.append(note);
     } else if (product.version && !product.cpe) {
@@ -666,15 +666,16 @@ function getCvss(metrics) {
 async function fetchProductCves(cpe) {
   const params = new URLSearchParams({
     cpeName: cpe,
-    resultsPerPage: "100",
-    sortBy: "published",
-    sortOrder: "desc"
+    resultsPerPage: "100"
   });
   const response = await fetch(
     `https://services.nvd.nist.gov/rest/json/cves/2.0?${params.toString()}`
   );
   if (!response.ok) {
-    throw new Error(`NVD antwortet mit HTTP ${response.status}.`);
+    const detail = response.status === 404
+      ? "Die NVD hat die Abfrageparameter nicht akzeptiert."
+      : `NVD antwortet mit HTTP ${response.status}.`;
+    throw new Error(detail);
   }
 
   const data = await response.json();
