@@ -388,6 +388,13 @@ window.CapybaraDetection = (() => {
       .toLowerCase()
       .split(/[^a-z0-9]+/)
       .some((part) => pathInputNames.has(part));
+    const hasPathQueryParameter = (url) => {
+      let found = false;
+      url.searchParams.forEach((_value, name) => {
+        if (hasPathInputName(name)) found = true;
+      });
+      return found;
+    };
     const endpointsWithPathInputs = new Set();
 
     for (const form of Array.from(document.forms).slice(0, 200)) {
@@ -401,8 +408,7 @@ window.CapybaraDetection = (() => {
         continue;
       }
 
-      const queryNames = [...actionUrl.searchParams.keys()].filter(hasPathInputName);
-      if (fieldNames.length || queryNames.length) {
+      if (fieldNames.length || hasPathQueryParameter(actionUrl)) {
         endpointsWithPathInputs.add("Formular");
       }
     }
@@ -414,7 +420,7 @@ window.CapybaraDetection = (() => {
       } catch {
         continue;
       }
-      if ([...linkUrl.searchParams.keys()].some(hasPathInputName)) {
+      if (hasPathQueryParameter(linkUrl)) {
         endpointsWithPathInputs.add("Link");
       }
     }
