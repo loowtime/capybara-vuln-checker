@@ -16,6 +16,14 @@
     "activeTab",
     "https://services.nvd.nist.gov/*"
   ],
+  "optional_permissions": [
+    "webRequest"
+  ],
+  "background": {
+    "scripts": [
+      "background.js"
+    ]
+  },
   "browser_specific_settings": {
     "gecko": {
       "id": "capybara-vuln-check@local",
