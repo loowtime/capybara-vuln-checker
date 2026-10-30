@@ -320,7 +320,13 @@ window.CapybaraDetection = (() => {
       "script[src], link[href], img[src], iframe[src], audio[src], video[src], source[src]"
     )).slice(0, 1000);
     let mixedContentCount = 0;
+    let externalScriptCount = 0;
     let externalScriptsWithoutSri = 0;
+    let externalStylesheetCount = 0;
+    let externalStylesheetsWithoutSri = 0;
+    let externalIframeCount = 0;
+    let externalIframesWithoutSandbox = 0;
+    const externalOrigins = new Set();
     for (const element of resources) {
       const rawUrl = element.src || element.href;
       if (!rawUrl) continue;
@@ -332,9 +338,32 @@ window.CapybaraDetection = (() => {
       }
 
       if (isHttps && resourceUrl.protocol === "http:") mixedContentCount += 1;
-      if (element.tagName === "SCRIPT" && resourceUrl.origin !== location.origin && !element.integrity) {
-        externalScriptsWithoutSri += 1;
+      if (
+        ["http:", "https:"].includes(resourceUrl.protocol) &&
+        resourceUrl.origin !== location.origin
+      ) {
+        if (element.tagName === "SCRIPT") {
+          externalOrigins.add(resourceUrl.origin);
+          externalScriptCount += 1;
+          if (!element.integrity) externalScriptsWithoutSri += 1;
+        } else if (element.tagName === "LINK" &&
+          element.rel?.toLowerCase().split(/\s+/).includes("stylesheet")) {
+          externalOrigins.add(resourceUrl.origin);
+          externalStylesheetCount += 1;
+          if (!element.integrity) externalStylesheetsWithoutSri += 1;
+        } else if (element.tagName === "IFRAME") {
+          externalOrigins.add(resourceUrl.origin);
+          externalIframeCount += 1;
+          if (!element.hasAttribute("sandbox")) externalIframesWithoutSandbox += 1;
+        }
       }
+    }
+    if (externalOrigins.size) {
+      security.push({
+        level: "info",
+        title: "Drittanbieter-Ressourcen erkannt",
+        detail: `${externalOrigins.size} externe Herkunft(en) über ${externalScriptCount} Skript(e), ${externalStylesheetCount} Stylesheet(s) und ${externalIframeCount} Frame(s). Prüfe Anbieter, Zweck und CSP-Freigaben; es wurden keine zusätzlichen Anfragen gesendet.`
+      });
     }
     if (mixedContentCount) {
       security.push({
@@ -343,11 +372,40 @@ window.CapybaraDetection = (() => {
         detail: `${mixedContentCount} Ressource(n) werden per HTTP in die HTTPS-Seite eingebunden. Stelle die Ressourcen auf HTTPS um oder entferne sie.`
       });
     }
-    if (externalScriptsWithoutSri) {
+    if (externalScriptsWithoutSri || externalStylesheetsWithoutSri) {
       security.push({
         level: "warning",
-        title: "Externe Skripte ohne SRI-Integritätsprüfung",
-        detail: `${externalScriptsWithoutSri} externes Skript(e) haben kein Subresource Integrity (SRI). Bei stabil versionierten CDN-Dateien SRI erwägen; dynamische Skripte sind nicht immer dafür geeignet.`
+        title: "Externe Skripte/Stylesheets ohne SRI",
+        detail: `${externalScriptsWithoutSri} Skript(e) und ${externalStylesheetsWithoutSri} Stylesheet(s) haben keine Subresource Integrity (SRI). Bei stabil versionierten CDN-Dateien SRI erwägen; dynamische Ressourcen sind nicht immer dafür geeignet.`
+      });
+    }
+    if (externalIframesWithoutSandbox) {
+      security.push({
+        level: "info",
+        title: "Externe Frames ohne sandbox",
+        detail: `${externalIframesWithoutSandbox} externe Frame(s) haben kein sandbox-Attribut. Prüfe, ob die Einbettung nötig ist und sich mit einer möglichst restriktiven Sandbox betreiben lässt.`
+      });
+    }
+
+    let crossOriginFormCount = 0;
+    for (const form of Array.from(document.forms).slice(0, 200)) {
+      try {
+        const actionUrl = new URL(form.action || location.href, location.href);
+        if (
+          ["http:", "https:"].includes(actionUrl.protocol) &&
+          actionUrl.origin !== location.origin
+        ) {
+          crossOriginFormCount += 1;
+        }
+      } catch {
+        continue;
+      }
+    }
+    if (crossOriginFormCount) {
+      security.push({
+        level: "info",
+        title: "Formulare mit Cross-Origin-Ziel",
+        detail: `${crossOriginFormCount} Formular(e) senden an eine andere Herkunft. Das kann beabsichtigt sein, etwa bei Zahlungsdiensten; gleiche jedes Ziel mit einer bekannten Allowlist ab und übermittle keine unnötigen Daten.`
       });
     }
 
