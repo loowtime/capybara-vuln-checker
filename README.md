@@ -54,6 +54,9 @@ entfernt und mit **Temporäres Add-on laden** erneut geladen werden.
   Seitenressourcen abgerufen. Ein CPE-Abgleich erfolgt nur für Komponenten mit
   konfiguriertem Produktprofil; Dateinamen und `ver`-Parameter sind schwache
   Hinweise und kein Beweis der installierten Version.
+- Die passive Checkliste markiert Formularfelder und bereits vorhandene URL-
+  Parameter mit Datei-/Pfadbezug zur manuellen Prüfung auf Path Traversal. Sie
+  sendet keine Testwerte und kann keine serverseitigen Schwachstellen bestätigen.
 - Cookie-Werte werden nicht gespeichert oder angezeigt; ausgewertet werden
   nur Anzahl und Secure-/HttpOnly-/SameSite-Attribute der Cookies im
   Hauptseiten-Response. Header-Befunde sind Hinweise und müssen zur Anwendung
