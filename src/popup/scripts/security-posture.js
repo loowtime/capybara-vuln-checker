@@ -56,6 +56,20 @@ window.CapybaraPosture = {
           detail: "script-src enthält unsafe-inline oder unsafe-eval. Nonces/Hashes und das Entfernen von Inline-Skripten können die Richtlinie stärken."
         });
       }
+      if (directives.get("object-src")?.trim() !== "'none'") {
+        findings.push({
+          level: "info",
+          title: "CSP beschränkt object-src nicht auf none",
+          detail: "Wenn die Website keine Legacy-Plugins benötigt, object-src 'none' prüfen, um eingebettete Plugin-Inhalte zu begrenzen."
+        });
+      }
+      if (!directives.has("base-uri")) {
+        findings.push({
+          level: "info",
+          title: "CSP ohne base-uri",
+          detail: "Prüfe base-uri 'self' oder 'none', um unerwartete Änderungen des Basis-URLs einzuschränken."
+        });
+      }
     }
 
     if (!header("x-content-type-options").split(",").some((value) => value.trim().toLowerCase() === "nosniff")) {
@@ -113,6 +127,20 @@ window.CapybaraPosture = {
     }
 
     if (cookieFlags.count) {
+      if (cookieFlags.invalidHostPrefix) {
+        findings.push({
+          level: "warning",
+          title: "Ungültige __Host-Cookie-Attribute",
+          detail: `${cookieFlags.invalidHostPrefix} Cookie(s) mit __Host- Präfix erfüllen nicht alle Anforderungen (Secure, Path=/ und kein Domain-Attribut). Cookie-Werte werden nicht gespeichert.`
+        });
+      }
+      if (cookieFlags.invalidSecurePrefix) {
+        findings.push({
+          level: "warning",
+          title: "Ungültige __Secure-Cookie-Attribute",
+          detail: `${cookieFlags.invalidSecurePrefix} Cookie(s) mit __Secure- Präfix haben kein Secure-Attribut. Cookie-Werte werden nicht gespeichert.`
+        });
+      }
       if (isHttps && cookieFlags.missingSecure) {
         findings.push({
           level: "warning",

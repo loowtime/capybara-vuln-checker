@@ -23,9 +23,14 @@ body {
   flex: none;
 }
 
+.header > div {
+  min-width: 0;
+}
+
 h1 {
   margin: 0;
   font-size: 17px;
+  overflow-wrap: anywhere;
 }
 
 .header p,
