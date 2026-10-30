@@ -15,6 +15,7 @@ function loadModules(fetch) {
   });
   for (const file of [
     "src/popup/scripts/nvd.js",
+    "src/popup/scripts/osv.js",
     "src/popup/scripts/technology-detection.js",
     "src/popup/scripts/security-posture.js"
   ]) {
@@ -84,6 +85,10 @@ test("detects JavaScript library versions from already-loaded asset URLs", async
 
   assert.equal(lodash.version, "4.17.20");
   assert.equal(lodash.cpe, "cpe:2.3:a:lodash:lodash:4.17.20:*:*:*:*:*:*:*");
+  assert.deepEqual(JSON.parse(JSON.stringify(lodash.osvPackage)), {
+    name: "lodash",
+    ecosystem: "npm"
+  });
   assert.equal(jquery.version, "3.5.1");
   assert.equal(jquery.cpe, null);
 });
@@ -195,6 +200,59 @@ test("excludes rejected CVEs returned by NVD", async () => {
   assert.deepEqual(result.findings.map((finding) => finding.id), ["CVE-TEST-VALID"]);
 });
 
+test("queries OSV by npm package and version and includes CVE aliases", async () => {
+  let requestUrl;
+  let requestBody;
+  const { window } = loadModules(async (url, options) => {
+    requestUrl = url;
+    requestBody = JSON.parse(options.body);
+    return {
+      ok: true,
+      json: async () => ({
+        vulns: [{
+          id: "GHSA-example",
+          aliases: ["CVE-2025-12345"],
+          summary: "Example package issue",
+          published: "2025-01-01T00:00:00Z",
+          database_specific: { severity: "HIGH" }
+        }]
+      })
+    };
+  });
+  const findings = await window.CapybaraOsv.lookupPackage({
+    name: "JavaScript: Lodash",
+    version: "4.17.20",
+    osvPackage: { name: "lodash", ecosystem: "npm" }
+  });
+
+  assert.equal(requestUrl, "https://api.osv.dev/v1/query");
+  assert.deepEqual(requestBody, {
+    package: { name: "lodash", ecosystem: "npm" },
+    version: "4.17.20"
+  });
+  assert.equal(findings[0].id, "CVE-2025-12345");
+  assert.equal(findings[0].sourceUrl, "https://osv.dev/vulnerability/GHSA-example");
+  assert.equal(findings[0].severity, "HIGH");
+  assert.equal(findings[0].potentiallyAffected, true);
+});
+
+test("does not query OSV for incomplete versions and reports HTTP errors", async () => {
+  const { window } = loadModules(async () => ({
+    ok: false,
+    status: 503
+  }));
+  const component = {
+    version: "4.17",
+    osvPackage: { name: "lodash", ecosystem: "npm" }
+  };
+  assert.equal((await window.CapybaraOsv.lookupPackage(component)).length, 0);
+
+  await assert.rejects(
+    window.CapybaraOsv.lookupPackage({ ...component, version: "4.17.20" }),
+    /OSV antwortet mit HTTP 503/
+  );
+});
+
 test("reports passive CORS policy inconsistencies", () => {
   const { window } = loadModules();
   const findings = window.CapybaraPosture.assessResponse({
@@ -203,4 +261,23 @@ test("reports passive CORS policy inconsistencies", () => {
   }, { count: 0 }, true);
 
   assert(findings.some((finding) => finding.title === "CORS-Header-Kombination prüfen"));
+});
+
+test("flags incomplete CSP directives and invalid cookie prefixes", () => {
+  const { window } = loadModules();
+  const findings = window.CapybaraPosture.assessResponse({
+    "content-security-policy": ["default-src 'self'; script-src 'self'"]
+  }, {
+    count: 2,
+    missingSecure: 0,
+    missingHttpOnly: 0,
+    missingSameSite: 0,
+    invalidHostPrefix: 1,
+    invalidSecurePrefix: 1
+  }, true);
+
+  assert(findings.some((finding) => finding.title === "CSP beschränkt object-src nicht auf none"));
+  assert(findings.some((finding) => finding.title === "CSP ohne base-uri"));
+  assert(findings.some((finding) => finding.title === "Ungültige __Host-Cookie-Attribute"));
+  assert(findings.some((finding) => finding.title === "Ungültige __Secure-Cookie-Attribute"));
 });
