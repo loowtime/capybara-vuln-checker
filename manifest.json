@@ -5,12 +5,12 @@
   "description": "Passive Hinweise auf Serverdienste und passende CVEs.",
   "browser_action": {
     "default_title": "Capybara Vuln Check",
-    "default_popup": "popup.html",
-    "default_icon": "icons/capybara.svg"
+    "default_popup": "src/popup.html",
+    "default_icon": "assets/icons/capybara.svg"
   },
   "icons": {
-    "48": "icons/capybara.svg",
-    "96": "icons/capybara.svg"
+    "48": "assets/icons/capybara.svg",
+    "96": "assets/icons/capybara.svg"
   },
   "permissions": [
     "activeTab",
@@ -22,7 +22,7 @@
   ],
   "background": {
     "scripts": [
-      "background.js"
+      "src/background.js"
     ]
   },
   "browser_specific_settings": {

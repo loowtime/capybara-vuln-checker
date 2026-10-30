@@ -4,11 +4,11 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Capybara Vuln Check</title>
-    <link rel="stylesheet" href="popup.css">
+    <link rel="stylesheet" href="styles/popup.css">
   </head>
   <body>
     <header class="header">
-      <img src="icons/capybara.svg" alt="" width="42" height="42">
+      <img src="../assets/icons/capybara.svg" alt="" width="42" height="42">
       <div>
         <h1>Capybara Vuln Check</h1>
         <p>Server, weitere Dienste &amp; CVE-Einordnung</p>
@@ -34,6 +34,10 @@
         Die Website-Adresse wird nicht an NVD gesendet.
       </p>
     </main>
-    <script src="popup.js"></script>
+    <script src="popup/scripts/technology-detection.js"></script>
+    <script src="popup/scripts/security-posture.js"></script>
+    <script src="popup/scripts/nvd.js"></script>
+    <script src="popup/scripts/popup-ui.js"></script>
+    <script src="popup/scripts/popup.js"></script>
   </body>
 </html>

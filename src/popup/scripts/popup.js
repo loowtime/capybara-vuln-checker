@@ -1,0 +1,164 @@
+const authorizationCheckbox = document.querySelector("#authorized");
+const scanButton = document.querySelector("#scan");
+const statusElement = document.querySelector("#status");
+const serverElement = document.querySelector("#server");
+const componentsElement = document.querySelector("#components");
+const postureElement = document.querySelector("#posture");
+const resultsElement = document.querySelector("#results");
+let activePage = null;
+
+authorizationCheckbox.addEventListener("change", () => {
+  scanButton.disabled = !authorizationCheckbox.checked || !activePage;
+});
+
+async function getActiveWebTab() {
+  const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.id || !tab.url) {
+    throw new Error("Der aktive Tab konnte nicht gefunden werden.");
+  }
+  const url = new URL(tab.url);
+  if (!["http:", "https:"].includes(url.protocol)) {
+    throw new Error("Nur normale HTTP- und HTTPS-Websites können geprüft werden.");
+  }
+  return { tab, url };
+}
+
+async function initializePopup() {
+  try {
+    activePage = await getActiveWebTab();
+    scanButton.disabled = !authorizationCheckbox.checked;
+  } catch (error) {
+    statusElement.textContent = error.message;
+  }
+}
+
+function mergeProducts(headerProducts, pageComponents) {
+  const products = [...headerProducts];
+  const queryableComponents = pageComponents
+    .filter((component) => component.cpe)
+    .map((component) => ({
+      ...component,
+      raw: "",
+      versions: [component.version]
+    }));
+
+  for (const component of queryableComponents) {
+    const index = products.findIndex((product) => product.name === component.name);
+    if (index < 0) {
+      products.push(component);
+    } else if (!products[index].version) {
+      products[index] = component;
+    }
+  }
+  return products;
+}
+
+function uniqueFindings(findings) {
+  const unique = new Map();
+  for (const finding of findings) {
+    const key = `${finding.id}:${finding.product}`;
+    const previous = unique.get(key);
+    if (!previous || finding.source === "Kuratiertes Advisory") {
+      unique.set(key, { ...previous, ...finding });
+    }
+  }
+  return [...unique.values()];
+}
+
+async function scanWebsite() {
+  scanButton.disabled = true;
+  statusElement.textContent = "Antwort-Header werden gelesen …";
+  serverElement.replaceChildren();
+  componentsElement.replaceChildren();
+  postureElement.replaceChildren();
+  resultsElement.replaceChildren();
+
+  try {
+    if (!activePage) {
+      throw new Error("Kein prüfbarer Website-Tab gefunden. Öffne das Popup erneut.");
+    }
+
+    const { tab, url } = activePage;
+    const granted = await browser.permissions.request({
+      origins: [`*://${url.hostname}/*`]
+    });
+    if (!granted) {
+      throw new Error("Firefox benötigt die Website-Berechtigung, um Antwort-Header zu lesen.");
+    }
+
+    statusElement.textContent = "Seite wird einmal neu geladen, um den Server-Header zu lesen …";
+    const response = await browser.runtime.sendMessage({
+      type: "scan-server-header",
+      tabId: tab.id,
+      origin: url.origin
+    });
+    const headers = response.headers ?? {};
+    const inspection = CapybaraDetection.inspectResponseHeaders(headers);
+    const pageInspection = await CapybaraDetection.inspectActivePage(tab.id);
+    const components = pageInspection.components;
+    inspection.products = mergeProducts(inspection.products, components);
+    inspection.results = new Map();
+
+    const queryable = inspection.products.filter((product) => product.version && product.cpe);
+    const findings = CapybaraNvd.advisoryFindings(components);
+
+    for (const [index, product] of queryable.entries()) {
+      statusElement.textContent =
+        `NVD-Abfrage ${index + 1} von ${queryable.length}: ${product.name} ${product.version} …`;
+      try {
+        const result = await CapybaraNvd.fetchProductCves(product.cpe);
+        inspection.results.set(product.name, {
+          totalResults: result.totalResults,
+          highSeverityCount: result.highSeverityCount
+        });
+        findings.push(...result.findings.map((finding) => ({
+          ...finding,
+          product: product.name,
+          productVersion: product.version
+        })));
+      } catch (error) {
+        inspection.results.set(product.name, { error: error.message });
+      }
+
+      if (index < queryable.length - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 6200));
+      }
+    }
+
+    const failed = [...inspection.results.values()].filter((result) => result.error).length;
+    const allFindings = uniqueFindings(findings).sort(
+      (left, right) => (right.score ?? -1) - (left.score ?? -1)
+    );
+    CapybaraUI.renderServer(serverElement, headers, inspection);
+    CapybaraUI.renderComponents(componentsElement, components);
+    CapybaraUI.renderPosture(postureElement, [
+      ...CapybaraPosture.assessResponse(
+        headers,
+        response.cookieFlags ?? {
+          count: 0,
+          missingSecure: 0,
+          missingHttpOnly: 0,
+          missingSameSite: 0
+        },
+        url.protocol === "https:"
+      ),
+      ...pageInspection.security
+    ]);
+    CapybaraUI.renderFindings(resultsElement, allFindings.slice(0, 50), queryable.length, failed);
+
+    const highCount = allFindings.filter(
+      (finding) => finding.score !== null && finding.score > 8
+    ).length;
+    statusElement.textContent =
+      `${inspection.products.length} Dienst(e), ${allFindings.length} CVE-Kandidat(en), ` +
+      `davon ${highCount} mit CVSS über 8,0${failed ? `; ${failed} NVD-Abfrage(n) fehlgeschlagen` : ""}.`;
+  } catch (error) {
+    statusElement.textContent =
+      error.message || "Die Server-Version konnte nicht geprüft werden.";
+  } finally {
+    scanButton.disabled = !authorizationCheckbox.checked || !activePage;
+  }
+}
+
+scanButton.addEventListener("click", scanWebsite);
+initializePopup();
