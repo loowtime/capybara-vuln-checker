@@ -38,6 +38,7 @@ function captureServerHeader(tabId, origin) {
       ) {
         return;
       }
+      const isSecureResponse = requestUrl.protocol === "https:";
 
       const observedHeaders = new Map([
         ["server", []],
@@ -68,19 +69,37 @@ function captureServerHeader(tabId, origin) {
         count: 0,
         missingSecure: 0,
         missingHttpOnly: 0,
-        missingSameSite: 0
+        missingSameSite: 0,
+        invalidHostPrefix: 0,
+        invalidSecurePrefix: 0
       };
       for (const header of details.responseHeaders ?? []) {
         if (header.name.toLowerCase() === "set-cookie" && header.value) {
-          const attributes = header.value.split(";").slice(1);
+          const parts = header.value.split(";");
+          const cookieName = parts[0].split("=")[0].trim();
+          const attributes = parts.slice(1);
           const attributeNames = new Set(
             attributes.map((attribute) => attribute.trim().split("=")[0].toLowerCase())
           );
+          const pathIsRoot = attributes.some((attribute) => /^path=\/$/i.test(attribute.trim()));
+          const hasDomain = attributeNames.has("domain");
           cookieFlags.count += 1;
           if (!attributeNames.has("secure")) cookieFlags.missingSecure += 1;
           if (!attributeNames.has("httponly")) cookieFlags.missingHttpOnly += 1;
           if (!attributes.some((attribute) => /^samesite=/i.test(attribute.trim()))) {
             cookieFlags.missingSameSite += 1;
+          }
+          if (
+            cookieName.startsWith("__Secure-") &&
+            (!isSecureResponse || !attributeNames.has("secure"))
+          ) {
+            cookieFlags.invalidSecurePrefix += 1;
+          }
+          if (
+            cookieName.startsWith("__Host-") &&
+            (!isSecureResponse || !attributeNames.has("secure") || hasDomain || !pathIsRoot)
+          ) {
+            cookieFlags.invalidHostPrefix += 1;
           }
           continue;
         }
