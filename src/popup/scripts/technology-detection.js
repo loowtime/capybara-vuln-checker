@@ -179,12 +179,14 @@ window.CapybaraDetection = (() => {
       {
         name: "JavaScript: jQuery",
         category: "JavaScript-Abhängigkeit",
+        osvPackage: { name: "jquery", ecosystem: "npm" },
         assetPattern: /(?:^|\/)jquery(?:\.min)?\.js$/i,
         expression: /(?:^|\/)jquery(?:[-.]v?)(\d+\.\d+(?:\.\d+)?)(?:[./-]|$)/i
       },
       {
         name: "JavaScript: Bootstrap",
         category: "JavaScript-Abhängigkeit",
+        osvPackage: { name: "bootstrap", ecosystem: "npm" },
         assetPattern: /(?:^|\/)bootstrap(?:\.min)?\.js$/i,
         expression: /(?:^|\/)bootstrap(?:[-.]v?)(\d+\.\d+(?:\.\d+)?)(?:[./-]|$)/i
       },
@@ -192,6 +194,7 @@ window.CapybaraDetection = (() => {
         name: "JavaScript: Lodash",
         slug: "lodash",
         category: "JavaScript-Abhängigkeit",
+        osvPackage: { name: "lodash", ecosystem: "npm" },
         assetPattern: /(?:^|\/)lodash(?:\.min)?\.js$/i,
         expression: /(?:^|\/)lodash(?:[-.]v?)(\d+\.\d+(?:\.\d+)?)(?:[./-]|$)/i,
         cpe: (version) => `cpe:2.3:a:lodash:lodash:${version}:*:*:*:*:*:*:*`
@@ -199,6 +202,7 @@ window.CapybaraDetection = (() => {
       {
         name: "JavaScript: AngularJS",
         category: "JavaScript-Abhängigkeit",
+        osvPackage: { name: "angular", ecosystem: "npm" },
         assetPattern: /(?:^|\/)angular(?:\.min)?\.js$/i,
         expression: /(?:^|\/)angular(?:[-.]v?)(\d+\.\d+(?:\.\d+)?)(?:[./-]|$)/i
       }
@@ -289,6 +293,7 @@ window.CapybaraDetection = (() => {
             name: library.name,
             slug: library.slug,
             category: library.category,
+            osvPackage: library.osvPackage,
             version,
             source: "geladene JavaScript-Ressource",
             confidence: "low",
