@@ -18,7 +18,8 @@
     "https://services.nvd.nist.gov/*"
   ],
   "optional_permissions": [
-    "*://*/*"
+    "http://*/*",
+    "https://*/*"
   ],
   "background": {
     "scripts": [
