@@ -1,0 +1,25 @@
+{
+  "manifest_version": 2,
+  "name": "Capybara Vuln Check",
+  "version": "0.1.0",
+  "description": "Passive Hinweise auf aktuelle CVEs für erkannte Webtechnologien.",
+  "browser_action": {
+    "default_title": "Capybara Vuln Check",
+    "default_popup": "popup.html",
+    "default_icon": "icons/capybara.svg"
+  },
+  "icons": {
+    "48": "icons/capybara.svg",
+    "96": "icons/capybara.svg"
+  },
+  "permissions": [
+    "activeTab",
+    "https://services.nvd.nist.gov/*"
+  ],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "capybara-vuln-check@local",
+      "strict_min_version": "109.0"
+    }
+  }
+}
