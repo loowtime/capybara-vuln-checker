@@ -15,6 +15,10 @@ Attribute, Mixed Content, Passwortformulare und externe Skripte ohne SRI.
 
 ## Projektstruktur
 
+![Beispielansicht des Capybara-Popups](docs/capybara-popup.png)
+
+Die CVE- und Versionsangaben im Screenshot sind Beispieldaten.
+
 ```text
 manifest.json             Firefox-Einstiegspunkt
 assets/icons/             Erweiterungssymbole
@@ -54,13 +58,23 @@ entfernt und mit **Temporäres Add-on laden** erneut geladen werden.
   Seitenressourcen abgerufen. Ein CPE-Abgleich erfolgt nur für Komponenten mit
   konfiguriertem Produktprofil; Dateinamen und `ver`-Parameter sind schwache
   Hinweise und kein Beweis der installierten Version.
+- Für erkannte npm-Bibliotheken mit exakter dreiteiliger Versionsnummer fragt
+  das Add-on zusätzlich die OSV-Datenbank ab. An OSV werden ausschließlich
+  Paketname, npm-Ökosystem und Versionsnummer gesendet – keine Website-Adresse
+  oder Hostname. OSV-Advisories werden als Kandidaten mit Quelle und Alias-IDs
+  angezeigt; ein fehlender CVSS-Score wird nicht als niedriger Score gewertet.
 - Die passive Checkliste markiert Formularfelder und bereits vorhandene URL-
   Parameter mit Datei-/Pfadbezug zur manuellen Prüfung auf Path Traversal. Sie
   sendet keine Testwerte und kann keine serverseitigen Schwachstellen bestätigen.
 - Cookie-Werte werden nicht gespeichert oder angezeigt; ausgewertet werden
-  nur Anzahl und Secure-/HttpOnly-/SameSite-Attribute der Cookies im
+  nur Anzahl und Secure-/HttpOnly-/SameSite-Attribute sowie die formalen
+  Anforderungen an `__Host-`/`__Secure-`-Präfixe der Cookies im
   Hauptseiten-Response. Header-Befunde sind Hinweise und müssen zur Anwendung
   passen; insbesondere CSP- und Browser-Policies können Funktionen brechen.
+- CSP-Hinweise umfassen unter anderem `default-src`, unsichere Script-Ausnahmen,
+  `object-src` und `base-uri`. Sie sind keine automatische Konfigurations-
+  empfehlung; Richtlinien müssen vor Durchsetzung an die Website angepasst und
+  getestet werden.
 - WordPress-Plugin-Namen stammen aus öffentlichen Asset-Pfaden. Ein `ver`-
   Parameter ist nur ein schwacher Versionshinweis und kann eine Asset-Version
   statt der installierten Plugin-Version bezeichnen. Treffer aus diesem Wert
