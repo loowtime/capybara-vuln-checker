@@ -197,7 +197,10 @@ test("excludes rejected CVEs returned by NVD", async () => {
             metrics: {
               cvssMetricV31: [{
                 type: "Primary",
-                cvssData: { baseScore: 9.1 }
+                cvssData: {
+                  baseScore: 9.1,
+                  vectorString: "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
+                }
               }]
             }
           }
@@ -208,6 +211,33 @@ test("excludes rejected CVEs returned by NVD", async () => {
   const result = await window.CapybaraNvd.fetchProductCves("cpe:test");
 
   assert.deepEqual(result.findings.map((finding) => finding.id), ["CVE-TEST-VALID"]);
+  assert.deepEqual(Array.from(result.findings[0].attackHints), [
+    "Netzwerk-Vektor",
+    "Keine Privilegien erforderlich",
+    "Keine Nutzerinteraktion erforderlich"
+  ]);
+});
+
+test("classifies root and privilege escalation as description hints, not confirmed access", () => {
+  const { window } = loadModules();
+  const rootHints = window.CapybaraNvd.assessImpact(
+    "A local attacker can gain root access and escalate privileges."
+  );
+  const unrelatedHints = window.CapybaraNvd.assessImpact(
+    "The vulnerability has a root cause in request handling."
+  );
+
+  assert(rootHints.includes("Root-/Admin-Zugriff im Advisory erwähnt"));
+  assert(rootHints.includes("Privilege-Eskalation im Advisory erwähnt"));
+  assert.deepEqual(Array.from(unrelatedHints), []);
+  assert.deepEqual(
+    Array.from(window.CapybaraNvd.getAttackHints("CVSS:4.0/AV:N/PR:N/UI:N/VC:H")),
+    ["Netzwerk-Vektor", "Keine Privilegien erforderlich", "Keine Nutzerinteraktion erforderlich"]
+  );
+  assert.deepEqual(
+    Array.from(window.CapybaraNvd.getAttackHints("AV:N/AC:L/Au:N/C:P/I:P/A:P")),
+    ["Netzwerk-Vektor", "Keine Anmeldung erforderlich"]
+  );
 });
 
 test("queries OSV by npm package and version and includes CVE aliases", async () => {
