@@ -175,6 +175,34 @@ window.CapybaraUI = {
     heading.textContent = `CVE- und Advisory-Kandidaten · ${findings.length}`;
     element.append(heading);
 
+    if (findings.length) {
+      const priority = document.createElement("div");
+      priority.className = "finding-priority";
+      const rootHints = findings.filter((finding) =>
+        finding.impactHints?.includes("Root-/Admin-Zugriff im Advisory erwähnt")
+      ).length;
+      const remoteUnauthenticated = findings.filter((finding) =>
+        finding.attackHints?.includes("Netzwerk-Vektor") &&
+        (finding.attackHints.includes("Keine Privilegien erforderlich") ||
+          finding.attackHints.includes("Keine Anmeldung erforderlich")) &&
+        finding.attackHints.includes("Keine Nutzerinteraktion erforderlich")
+      ).length;
+      const highSeverity = findings.filter((finding) =>
+        finding.score !== null && finding.score > 8
+      ).length;
+      const summary = document.createElement("strong");
+      summary.textContent = "Triage-Hinweise";
+      const stats = document.createElement("p");
+      stats.textContent =
+        `Root/Admin im Advisory-Text: ${rootHints} · ` +
+        `Netzwerk, ohne Zugangsdaten/Interaktion: ${remoteUnauthenticated} · ` +
+        `CVSS > 8,0: ${highSeverity}`;
+      const caveat = document.createElement("small");
+      caveat.textContent = "Text- und CVSS-Hinweise zur Priorisierung, kein Nachweis der Ausnutzbarkeit.";
+      priority.append(summary, stats, caveat);
+      element.append(priority);
+    }
+
     if (!findings.length) {
       const empty = document.createElement("p");
       const note = document.createElement("details");
@@ -247,6 +275,18 @@ window.CapybaraUI = {
       provenance.textContent =
         `${finding.product} ${finding.productVersion} · ${finding.status} · ${finding.source}${published}`;
       article.append(summary, description, provenance);
+
+      const hints = [...(finding.impactHints ?? []), ...(finding.attackHints ?? [])];
+      if (hints.length) {
+        const badges = document.createElement("ul");
+        badges.className = "finding-hints";
+        for (const hint of hints) {
+          const badge = document.createElement("li");
+          badge.textContent = hint;
+          badges.append(badge);
+        }
+        article.append(badges);
+      }
 
       if (finding.assessment) {
         const assessment = document.createElement("p");
