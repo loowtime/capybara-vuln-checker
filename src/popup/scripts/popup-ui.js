@@ -169,10 +169,10 @@ window.CapybaraUI = {
     element.append(disclosure);
   },
 
-  renderFindings(element, findings, queryCount, failedCount) {
+  renderFindings(element, findings, queryCount, failedCount, sourceErrors = []) {
     element.replaceChildren();
     const heading = document.createElement("h2");
-    heading.textContent = `CVE-Kandidaten · ${findings.length}`;
+    heading.textContent = `CVE- und Advisory-Kandidaten · ${findings.length}`;
     element.append(heading);
 
     if (!findings.length) {
@@ -186,10 +186,10 @@ window.CapybaraUI = {
         empty.textContent = "Keine CVE-Abfrage möglich";
         explanation.textContent =
           "Es wurde keine exakt unterstützte Produktversion erkannt. Die Dienstübersicht zeigt, welche Erkennung fehlt.";
-      } else if (failedCount === queryCount) {
-        empty.textContent = "NVD-Abfragen fehlgeschlagen";
+      } else if (failedCount === queryCount && failedCount > 0) {
+        empty.textContent = "Alle CVE-Abfragen fehlgeschlagen";
         explanation.textContent =
-          "Es liegt kein verlässliches CVE-Ergebnis vor. Details stehen bei den jeweiligen Diensten.";
+          "Es liegt kein verlässliches CVE-Ergebnis vor. Öffne die Quellenhinweise für Fehlerdetails.";
       } else if (failedCount > 0) {
         empty.textContent = "Mindestens eine Abfrage fehlgeschlagen";
         explanation.textContent =
@@ -197,10 +197,13 @@ window.CapybaraUI = {
       } else {
         empty.textContent = "Keine CVE-Kandidaten gefunden";
         explanation.textContent =
-          "Die NVD und der Advisory-Katalog haben für die erkannten Produkte keine Kandidaten zurückgegeben. Das bedeutet nicht, dass die Komponenten sicher oder aktuell sind.";
+          "NVD, OSV und der Advisory-Katalog haben für die erkannten Produkte keine Kandidaten zurückgegeben. Das bedeutet nicht, dass die Komponenten sicher oder aktuell sind.";
       }
       note.append(summary, explanation);
       element.append(empty, note);
+      if (sourceErrors.length) {
+        element.append(this.createNote("Fehler bei CVE-Quellen", sourceErrors.join(" · ")));
+      }
       return;
     }
 
@@ -210,7 +213,8 @@ window.CapybaraUI = {
       const summary = document.createElement("summary");
       summary.className = "finding-heading";
       const link = document.createElement("a");
-      link.href = `https://nvd.nist.gov/vuln/detail/${encodeURIComponent(finding.id)}`;
+      link.href = finding.sourceUrl ??
+        `https://nvd.nist.gov/vuln/detail/${encodeURIComponent(finding.id)}`;
       link.target = "_blank";
       link.rel = "noopener noreferrer";
       link.textContent = finding.id;
@@ -226,7 +230,9 @@ window.CapybaraUI = {
               : ""
       }`;
       score.textContent = finding.score === null
-        ? "Kein CVSS"
+        ? finding.severity
+          ? `CVSS nicht verfügbar · ${finding.severity}`
+          : "Kein CVSS"
         : `${this.severityLabel(finding.score)} · ${finding.score.toFixed(1)} · ${finding.version}`;
       summary.append(link, score);
 
@@ -248,13 +254,21 @@ window.CapybaraUI = {
         assessment.textContent = finding.assessment;
         article.append(assessment);
       }
+      if (finding.relatedIds?.length) {
+        const aliases = document.createElement("small");
+        aliases.textContent = `Weitere Advisory-IDs: ${finding.relatedIds.join(", ")}`;
+        article.append(aliases);
+      }
       element.append(article);
     }
 
     element.append(this.createNote(
       "Zur Einordnung der CVE-Treffer",
-      "NVD-CPE-Treffer und Advisory-Katalog sind Kandidaten, kein Nachweis einer verwundbaren Installation. CVSS bewertet die Schwachstelle allgemein. Prüfe Versionsbereiche, Hersteller-Advisories, Distribution-Patches und Konfiguration."
+      "NVD-, OSV- und Advisory-Treffer sind Kandidaten, kein Nachweis einer verwundbaren Installation. Versionshinweise aus Asset-URLs sind unsicher. Prüfe Paketversionen, Hersteller-Advisories, Distribution-Patches und Konfiguration."
     ));
+    if (sourceErrors.length) {
+      element.append(this.createNote("Fehler bei CVE-Quellen", sourceErrors.join(" · ")));
+    }
   },
 
   createNote(title, text) {
