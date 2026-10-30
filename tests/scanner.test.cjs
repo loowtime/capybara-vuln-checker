@@ -95,6 +95,16 @@ test("detects JavaScript library versions from already-loaded asset URLs", async
 
 test("passively flags file and path inputs without sending requests", async () => {
   const context = loadModules();
+  class LegacyURL extends URL {
+    get searchParams() {
+      const params = super.searchParams;
+      return {
+        get: params.get.bind(params),
+        forEach: params.forEach.bind(params),
+        keys: () => ({})
+      };
+    }
+  }
   const form = {
     action: "https://site.example.test/download?file=report.pdf",
     method: "get",
@@ -113,7 +123,7 @@ test("passively flags file and path inputs without sending requests", async () =
     tabs: {
       executeScript: async (_tabId, options) => [vm.runInNewContext(options.code, {
         document,
-        URL,
+        URL: LegacyURL,
         location: {
           href: "https://site.example.test/",
           origin: "https://site.example.test",
