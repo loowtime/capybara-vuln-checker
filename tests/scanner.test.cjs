@@ -88,6 +88,46 @@ test("detects JavaScript library versions from already-loaded asset URLs", async
   assert.equal(jquery.cpe, null);
 });
 
+test("passively flags file and path inputs without sending requests", async () => {
+  const context = loadModules();
+  const form = {
+    action: "https://site.example.test/download?file=report.pdf",
+    method: "get",
+    querySelector: () => null,
+    querySelectorAll: () => [{ name: "template_name" }, { name: "display_name" }]
+  };
+  const links = [
+    { href: "https://site.example.test/view?document_id=12" }
+  ];
+  const document = {
+    querySelector: () => null,
+    querySelectorAll: (selector) => selector === "a[href]" ? links : [],
+    forms: [form]
+  };
+  context.browser = {
+    tabs: {
+      executeScript: async (_tabId, options) => [vm.runInNewContext(options.code, {
+        document,
+        URL,
+        location: {
+          href: "https://site.example.test/",
+          origin: "https://site.example.test",
+          protocol: "https:"
+        }
+      })]
+    }
+  };
+
+  const result = await context.window.CapybaraDetection.inspectActivePage(1);
+  const finding = result.security.find((item) =>
+    item.title === "Datei-/Pfad-Eingaben zur manuellen Prüfung erkannt"
+  );
+
+  assert(finding);
+  assert.match(finding.detail, /kein Nachweis für Path Traversal/);
+  assert.match(finding.detail, /keine Testwerte gesendet/);
+});
+
 test("only reports watchlist products inside known affected ranges", () => {
   const { window } = loadModules();
   const nvd = window.CapybaraNvd;
