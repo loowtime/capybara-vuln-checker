@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Capybara Vuln Check</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <header class="header">
+      <img src="icons/capybara.svg" alt="" width="42" height="42">
+      <div>
+        <h1>Capybara Vuln Check</h1>
+        <p>Passive CVE-Hinweise für diese Seite</p>
+      </div>
+    </header>
+
+    <main>
+      <button id="scan" type="button">Seite prüfen</button>
+      <p id="status" role="status" aria-live="polite">Analyse wird vorbereitet …</p>
+      <section id="technologies" aria-label="Erkannte Technologien"></section>
+      <section id="results" aria-label="Mögliche CVEs"></section>
+      <p class="disclaimer">
+        Treffer sind keyword-basierte Hinweise, kein Nachweis einer Schwachstelle.
+        Versionsstände lassen sich im Browser meist nicht sicher feststellen.
+        Es werden keine Seiteninhalte oder URLs an NVD gesendet.
+      </p>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>
