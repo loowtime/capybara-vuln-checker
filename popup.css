@@ -82,8 +82,68 @@ button:disabled {
   border-radius: 8px;
 }
 
+.component-info {
+  margin: 8px 0;
+  padding: 8px 10px;
+  border-left: 3px solid #34775b;
+  background: rgba(52, 119, 91, 0.08);
+}
+
+.component-info p {
+  margin: 3px 0;
+}
+
+.posture-heading {
+  margin: 14px 0 6px;
+}
+
+.posture-item {
+  margin: 7px 0;
+  padding: 8px 10px;
+  border-left: 3px solid #34775b;
+  background: rgba(52, 119, 91, 0.08);
+}
+
+.posture-item p {
+  margin: 3px 0;
+}
+
+.posture-warning {
+  border-left-color: #c77700;
+  background: rgba(213, 155, 55, 0.1);
+}
+
+.posture-info {
+  border-left-color: #537da5;
+  background: rgba(83, 125, 165, 0.1);
+}
+
 .server-info strong {
   display: block;
+}
+
+.server-info p {
+  margin: 4px 0;
+}
+
+.assessment {
+  padding: 8px;
+  border-left: 3px solid #d59b37;
+  background: rgba(213, 155, 55, 0.1);
+}
+
+details {
+  margin: 10px 0;
+}
+
+summary {
+  cursor: pointer;
+}
+
+details ul {
+  margin: 6px 0;
+  padding-left: 18px;
+  overflow-wrap: anywhere;
 }
 
 .finding {
@@ -106,6 +166,14 @@ button:disabled {
 .score {
   flex: none;
   font-weight: 700;
+}
+
+.score-critical {
+  color: #c62828;
+}
+
+.score-high {
+  color: #c77700;
 }
 
 .finding p {

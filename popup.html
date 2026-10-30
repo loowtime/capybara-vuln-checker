@@ -11,7 +11,7 @@
       <img src="icons/capybara.svg" alt="" width="42" height="42">
       <div>
         <h1>Capybara Vuln Check</h1>
-        <p>Passive CVE-Hinweise für diese Seite</p>
+        <p>Server, weitere Dienste &amp; CVE-Einordnung</p>
       </div>
     </header>
 
@@ -20,17 +20,18 @@
         <input id="authorized" type="checkbox">
         <span>Ich bin berechtigt, diese Website zu prüfen.</span>
       </label>
-      <button id="scan" type="button" disabled>Server-Version prüfen</button>
+      <button id="scan" type="button" disabled>Dienste &amp; CVEs prüfen</button>
       <p id="status" role="status" aria-live="polite">
-        Die Prüfung liest den Server-Header und lädt die Seite dafür einmal neu.
+        Die Prüfung liest Antwort-Header und lädt die Seite dafür einmal neu.
       </p>
       <section id="server" aria-label="Erkannter Webserver"></section>
+      <section id="components" aria-label="Erkannte CMS-Komponenten"></section>
+      <section id="posture" aria-label="Passive Sicherheitsprüfung"></section>
       <section id="results" aria-label="Mögliche CVEs"></section>
       <p class="disclaimer">
-        Die Server-Angabe kann fehlen, verfälscht oder nur ein Proxy sein.
-        CVE-Treffer sind Hinweise für die exakt gemeldete Version, kein
-        Nachweis einer verwundbaren Website. Die Website-Adresse wird nicht an
-        NVD gesendet.
+        Die Prüfung ist passiv: keine Payloads, Login-Tests oder Exploits.
+        Hinweise ersetzen kein vollständiges Audit und beweisen keine Ausnutzbarkeit.
+        Die Website-Adresse wird nicht an NVD gesendet.
       </p>
     </main>
     <script src="popup.js"></script>
