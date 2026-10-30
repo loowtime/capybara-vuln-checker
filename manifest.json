@@ -15,7 +15,8 @@
   "permissions": [
     "activeTab",
     "webRequest",
-    "https://services.nvd.nist.gov/*"
+    "https://services.nvd.nist.gov/*",
+    "https://api.osv.dev/*"
   ],
   "optional_permissions": [
     "http://*/*",
