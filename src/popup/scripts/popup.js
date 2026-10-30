@@ -109,6 +109,7 @@ async function scanWebsite() {
 
     const queryable = inspection.products.filter((product) => product.version && product.cpe);
     const findings = CapybaraNvd.advisoryFindings(components);
+    const sourceErrors = [];
 
     for (const [index, product] of queryable.entries()) {
       statusElement.textContent =
@@ -133,6 +134,19 @@ async function scanWebsite() {
       }
     }
 
+    const osvComponents = components.filter((component) =>
+      component.osvPackage && /^\d+\.\d+\.\d+$/.test(component.version ?? "")
+    );
+    for (const [index, component] of osvComponents.entries()) {
+      statusElement.textContent =
+        `OSV-Abfrage ${index + 1} von ${osvComponents.length}: ${component.name} ${component.version} …`;
+      try {
+        findings.push(...await CapybaraOsv.lookupPackage(component));
+      } catch (error) {
+        sourceErrors.push(`${component.name}: ${error.message}`);
+      }
+    }
+
     const failed = [...inspection.results.values()].filter((result) => result.error).length;
     const allFindings = uniqueFindings(findings).sort(
       (left, right) => (right.score ?? -1) - (left.score ?? -1)
@@ -146,20 +160,30 @@ async function scanWebsite() {
           count: 0,
           missingSecure: 0,
           missingHttpOnly: 0,
-          missingSameSite: 0
+          missingSameSite: 0,
+          invalidHostPrefix: 0,
+          invalidSecurePrefix: 0
         },
         url.protocol === "https:"
       ),
       ...pageInspection.security
     ]);
-    CapybaraUI.renderFindings(resultsElement, allFindings.slice(0, 50), queryable.length, failed);
+    CapybaraUI.renderFindings(
+      resultsElement,
+      allFindings.slice(0, 50),
+      queryable.length + osvComponents.length,
+      failed + sourceErrors.length,
+      sourceErrors
+    );
 
     const highCount = allFindings.filter(
       (finding) => finding.score !== null && finding.score > 8
     ).length;
     statusElement.textContent =
       `${inspection.products.length} Dienst(e), ${allFindings.length} CVE-Kandidat(en), ` +
-      `davon ${highCount} mit CVSS über 8,0${failed ? `; ${failed} NVD-Abfrage(n) fehlgeschlagen` : ""}.`;
+      `davon ${highCount} mit CVSS über 8,0` +
+      `${failed ? `; ${failed} NVD-Abfrage(n) fehlgeschlagen` : ""}` +
+      `${sourceErrors.length ? `; ${sourceErrors.length} OSV-Abfrage(n) fehlgeschlagen` : ""}.`;
   } catch (error) {
     statusElement.textContent =
       error.message || "Die Server-Version konnte nicht geprüft werden.";
