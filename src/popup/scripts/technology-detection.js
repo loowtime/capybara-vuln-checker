@@ -374,6 +374,54 @@ window.CapybaraDetection = (() => {
       });
     }
 
+    const pathInputNames = new Set([
+      "file", "filepath", "filename", "path", "directory", "dir", "folder",
+      "template", "include", "download", "document", "resource", "asset"
+    ]);
+    const hasPathInputName = (name) => name
+      .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .some((part) => pathInputNames.has(part));
+    const endpointsWithPathInputs = new Set();
+
+    for (const form of Array.from(document.forms).slice(0, 200)) {
+      const fieldNames = Array.from(form.querySelectorAll("[name]"))
+        .map((field) => field.name)
+        .filter(hasPathInputName);
+      let actionUrl;
+      try {
+        actionUrl = new URL(form.action || location.href, location.href);
+      } catch {
+        continue;
+      }
+
+      const queryNames = [...actionUrl.searchParams.keys()].filter(hasPathInputName);
+      if (fieldNames.length || queryNames.length) {
+        endpointsWithPathInputs.add("Formular");
+      }
+    }
+
+    for (const link of Array.from(document.querySelectorAll("a[href]")).slice(0, 500)) {
+      let linkUrl;
+      try {
+        linkUrl = new URL(link.href, location.href);
+      } catch {
+        continue;
+      }
+      if ([...linkUrl.searchParams.keys()].some(hasPathInputName)) {
+        endpointsWithPathInputs.add("Link");
+      }
+    }
+
+    if (endpointsWithPathInputs.size) {
+      security.push({
+        level: "info",
+        title: "Datei-/Pfad-Eingaben zur manuellen Prüfung erkannt",
+        detail: `Bereits gerenderte ${[...endpointsWithPathInputs].join(" und ")} enthalten Felder oder URL-Parameter mit Datei-/Pfadbezug. Das ist kein Nachweis für Path Traversal. Prüfe serverseitig feste Basisverzeichnisse, erlaubte Dateinamen und kanonische Pfadvalidierung. Es wurden keine Testwerte gesendet.`
+      });
+    }
+
     return { components: [...components.values()], security };
   }
 
