@@ -12,6 +12,10 @@ Angezeigt werden CVE-Kandidaten samt Status, CVSS und einer nachvollziehbaren
 Einordnung. Werte über 8,0 werden hervorgehoben. Die Erweiterung bewertet
 passiv CSP, HSTS, Clickjacking-/MIME-Schutz, Browser-Policies, Cookie-
 Attribute, Mixed Content, Passwortformulare und externe Skripte ohne SRI.
+Bei CVEs fasst eine Triage die im Advisory-Text erwähnten Root-/Admin-Rechte
+sowie CVSS-Angriffsvektor, benötigte Privilegien und Nutzerinteraktion zusammen.
+Diese Metadaten helfen bei der Priorisierung, bestätigen aber weder Ausnutzbarkeit
+noch Root-Zugriff auf die erkannte Website.
 
 ## Projektstruktur
 
