@@ -143,6 +143,85 @@ test("passively flags file and path inputs without sending requests", async () =
   assert.match(finding.detail, /keine Testwerte gesendet/);
 });
 
+test("audits third-party assets, frames, and form destinations without requests", async () => {
+  const context = loadModules();
+  const resources = [
+    {
+      src: "https://cdn.example.test/app.js",
+      href: "",
+      tagName: "SCRIPT",
+      integrity: ""
+    },
+    {
+      src: "",
+      href: "https://styles.example.test/site.css",
+      tagName: "LINK",
+      rel: "stylesheet",
+      integrity: "sha384-example"
+    },
+    {
+      src: "https://embed.example.test/widget",
+      href: "",
+      tagName: "IFRAME",
+      integrity: "",
+      hasAttribute: () => false
+    },
+    {
+      src: "about:blank",
+      href: "",
+      tagName: "IFRAME",
+      integrity: "",
+      hasAttribute: () => true
+    }
+  ];
+  const forms = [{
+    action: "https://pay.example.test/checkout",
+    method: "post",
+    querySelector: () => null,
+    querySelectorAll: () => []
+  }, {
+    action: "mailto:security@example.test",
+    method: "post",
+    querySelector: () => null,
+    querySelectorAll: () => []
+  }];
+  const document = {
+    querySelector: () => null,
+    querySelectorAll: (selector) => selector === "a[href]" ? [] : resources,
+    forms
+  };
+  context.browser = {
+    tabs: {
+      executeScript: async (_tabId, options) => [vm.runInNewContext(options.code, {
+        document,
+        URL,
+        location: {
+          href: "https://site.example.test/",
+          origin: "https://site.example.test",
+          protocol: "https:"
+        }
+      })]
+    }
+  };
+
+  const result = await context.window.CapybaraDetection.inspectActivePage(1);
+  const thirdParty = result.security.find((finding) =>
+    finding.title === "Drittanbieter-Ressourcen erkannt"
+  );
+  assert.match(thirdParty.detail, /3 externe Herkunft/);
+  assert.match(thirdParty.detail, /1 Skript\(e\), 1 Stylesheet\(s\) und 1 Frame\(s\)/);
+  assert.doesNotMatch(thirdParty.detail, /example\.test/);
+  assert(result.security.some((finding) =>
+    finding.title === "Externe Skripte/Stylesheets ohne SRI"
+  ));
+  assert(result.security.some((finding) =>
+    finding.title === "Externe Frames ohne sandbox"
+  ));
+  assert(result.security.some((finding) =>
+    finding.title === "Formulare mit Cross-Origin-Ziel"
+  ));
+});
+
 test("only reports watchlist products inside known affected ranges", () => {
   const { window } = loadModules();
   const nvd = window.CapybaraNvd;
