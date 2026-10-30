@@ -39,6 +39,9 @@ window.CapybaraOsv = {
         sourceUrl: `https://osv.dev/vulnerability/${encodeURIComponent(vulnerability.id)}`,
         product: component.name,
         productVersion: component.version,
+        impactHints: window.CapybaraNvd.assessImpact(
+          vulnerability.summary ?? vulnerability.details ?? ""
+        ),
         assessment: `OSV ordnet diese Paketversion dem Advisory zu. Die erkannte Versionsnummer stammt aus einer öffentlichen Asset-URL und muss im Deployment bestätigt werden.${severity ? ` OSV-Einstufung: ${severity}.` : ""}`,
         potentiallyAffected: true,
         relatedIds: aliases.filter((alias) => alias !== id)

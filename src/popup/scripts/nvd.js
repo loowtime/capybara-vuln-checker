@@ -120,9 +120,51 @@ window.CapybaraNvd = (() => {
       if (!entries?.length) continue;
       const metric = entries.find((entry) => entry.type === "Primary") ?? entries[0];
       const score = metric.cvssData?.baseScore;
-      if (typeof score === "number") return { score, version };
+      if (typeof score === "number") {
+        return {
+          score,
+          version,
+          vectorString: metric.cvssData?.vectorString ?? null
+        };
+      }
     }
     return null;
+  }
+
+  function assessImpact(description) {
+    const text = description ?? "";
+    const hints = [];
+    if (/\bprivilege escalation\b|\b(?:escalate|elevate)(?:s|d)? (?:user )?privileges?\b/i.test(text)) {
+      hints.push("Privilege-Eskalation im Advisory erwähnt");
+    }
+    if (
+      /\b(?:root|superuser|administrator|administrative|admin)\s+(?:access|privileges?|rights?)\b|\b(?:gain|obtain|achieve|escalate|elevate)(?:s|d)?\s+(?:to\s+)?(?:root|superuser|administrator|admin)\b|\b(?:execute|run)(?:s|ning)?\s+(?:arbitrary\s+)?(?:code|commands?)\s+as\s+root\b/i.test(text)
+    ) {
+      hints.push("Root-/Admin-Zugriff im Advisory erwähnt");
+    }
+    return hints;
+  }
+
+  function getAttackHints(vectorString) {
+    if (!vectorString) return [];
+    const metrics = new Map(
+      vectorString.split("/").filter((part) => part.includes(":")).map((part) => {
+        const [name, value] = part.split(":");
+        return [name, value];
+      })
+    );
+    const hints = [];
+    const attackVector = {
+      N: "Netzwerk-Vektor",
+      A: "Angrenzendes Netzwerk",
+      L: "Lokaler Zugriff erforderlich",
+      P: "Physischer Zugriff erforderlich"
+    }[metrics.get("AV")];
+    if (attackVector) hints.push(attackVector);
+    if (metrics.get("PR") === "N") hints.push("Keine Privilegien erforderlich");
+    else if (metrics.get("Au") === "N") hints.push("Keine Anmeldung erforderlich");
+    if (metrics.get("UI") === "N") hints.push("Keine Nutzerinteraktion erforderlich");
+    return hints;
   }
 
   function compareVersions(left, right) {
@@ -183,6 +225,7 @@ window.CapybaraNvd = (() => {
         product: component.name,
         productVersion: component.version ?? "unbekannt",
         source: "Kuratiertes Advisory",
+        impactHints: assessImpact(advisory.description),
         assessment: versionMessage,
         confidence: component.confidence ?? "low",
         potentiallyAffected: component.version && hasKnownRange ? affected : null
@@ -207,12 +250,16 @@ window.CapybaraNvd = (() => {
       .filter(({ cve }) => cve.vulnStatus !== "Rejected")
       .map(({ cve }) => {
         const cvss = getCvss(cve.metrics ?? {});
+        const description = cve.descriptions?.find((item) => item.lang === "en")?.value ??
+          cve.descriptions?.[0]?.value ?? "Keine Beschreibung verfügbar.";
         return {
           id: cve.id,
           score: cvss?.score ?? null,
           version: cvss?.version ?? null,
-          description: cve.descriptions?.find((item) => item.lang === "en")?.value ??
-            cve.descriptions?.[0]?.value ?? "Keine Beschreibung verfügbar.",
+          vectorString: cvss?.vectorString ?? null,
+          attackHints: getAttackHints(cvss?.vectorString),
+          impactHints: assessImpact(description),
+          description,
           published: cve.published,
           status: cve.vulnStatus ?? "Unknown",
           source: "NVD-CPE-Abgleich"
@@ -228,5 +275,5 @@ window.CapybaraNvd = (() => {
     };
   }
 
-  return { advisoryFindings, fetchProductCves };
+  return { advisoryFindings, assessImpact, getAttackHints, fetchProductCves };
 })();
