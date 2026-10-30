@@ -79,12 +79,21 @@ async function scanWebsite() {
     }
 
     const { tab, url } = activePage;
-    const granted = await browser.permissions.request({
-      origins: [`*://${url.hostname}/*`]
-    });
+    const hostOrigins = [
+      `http://${url.hostname}/*`,
+      `https://${url.hostname}/*`
+    ];
+    const granted = await browser.permissions.request({ origins: hostOrigins });
     if (!granted) {
       throw new Error("Firefox benötigt die Website-Berechtigung, um Antwort-Header zu lesen.");
     }
+    if (!(await browser.permissions.contains({ origins: hostOrigins }))) {
+      throw new Error(
+        "Firefox hat den Hostzugriff nicht bestätigt. Erlaube den Zugriff auf diese Website in den Add-on-Berechtigungen und starte den Scan erneut."
+      );
+    }
+
+    const pageInspection = await CapybaraDetection.inspectActivePage(tab.id);
 
     statusElement.textContent = "Seite wird einmal neu geladen, um den Server-Header zu lesen …";
     const response = await browser.runtime.sendMessage({
@@ -94,7 +103,6 @@ async function scanWebsite() {
     });
     const headers = response.headers ?? {};
     const inspection = CapybaraDetection.inspectResponseHeaders(headers);
-    const pageInspection = await CapybaraDetection.inspectActivePage(tab.id);
     const components = pageInspection.components;
     inspection.products = mergeProducts(inspection.products, components);
     inspection.results = new Map();
