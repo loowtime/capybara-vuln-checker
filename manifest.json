@@ -2,7 +2,7 @@
   "manifest_version": 2,
   "name": "Capybara Vuln Check",
   "version": "0.1.0",
-  "description": "Passive Hinweise auf aktuelle CVEs für erkannte Webtechnologien.",
+  "description": "Passive Hinweise auf Serverdienste und passende CVEs.",
   "browser_action": {
     "default_title": "Capybara Vuln Check",
     "default_popup": "popup.html",
@@ -14,10 +14,11 @@
   },
   "permissions": [
     "activeTab",
+    "webRequest",
     "https://services.nvd.nist.gov/*"
   ],
   "optional_permissions": [
-    "webRequest"
+    "*://*/*"
   ],
   "background": {
     "scripts": [

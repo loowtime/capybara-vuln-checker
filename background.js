@@ -2,12 +2,23 @@ function captureServerHeader(tabId, origin) {
   return new Promise((resolve, reject) => {
     let timer;
     let listening = false;
+    let watchingRequestErrors = false;
+    let watchingTab = false;
+    const target = new URL(origin);
 
     const cleanup = () => {
       clearTimeout(timer);
       if (listening) {
         browser.webRequest.onHeadersReceived.removeListener(onHeadersReceived);
         listening = false;
+      }
+      if (watchingRequestErrors) {
+        browser.webRequest.onErrorOccurred.removeListener(onRequestError);
+        watchingRequestErrors = false;
+      }
+      if (watchingTab) {
+        browser.tabs.onUpdated.removeListener(onTabUpdated);
+        watchingTab = false;
       }
     };
 
@@ -22,29 +33,105 @@ function captureServerHeader(tabId, origin) {
       if (
         details.tabId !== tabId ||
         details.frameId !== 0 ||
-        requestUrl.origin !== origin ||
+        requestUrl.hostname !== target.hostname ||
         (details.statusCode >= 300 && details.statusCode < 400)
       ) {
         return;
       }
 
-      const serverHeader = details.responseHeaders?.find(
-        (header) => header.name.toLowerCase() === "server"
-      )?.value ?? null;
-      finish(null, { serverHeader, statusCode: details.statusCode });
+      const observedHeaders = new Map([
+        ["server", []],
+        ["x-powered-by", []],
+        ["x-aspnet-version", []],
+        ["x-aspnetmvc-version", []],
+        ["x-generator", []],
+        ["strict-transport-security", []],
+        ["content-security-policy", []],
+        ["content-security-policy-report-only", []],
+        ["x-content-type-options", []],
+        ["x-frame-options", []],
+        ["referrer-policy", []],
+        ["permissions-policy", []],
+        ["cross-origin-opener-policy", []],
+        ["cross-origin-resource-policy", []],
+        ["via", []],
+        ["x-varnish", []],
+        ["x-served-by", []],
+        ["x-cache", []],
+        ["cf-ray", []],
+        ["x-amz-cf-id", []]
+      ]);
+      const cookieFlags = {
+        count: 0,
+        missingSecure: 0,
+        missingHttpOnly: 0,
+        missingSameSite: 0
+      };
+      for (const header of details.responseHeaders ?? []) {
+        if (header.name.toLowerCase() === "set-cookie" && header.value) {
+          const attributes = header.value.split(";").slice(1);
+          const attributeNames = new Set(
+            attributes.map((attribute) => attribute.trim().split("=")[0].toLowerCase())
+          );
+          cookieFlags.count += 1;
+          if (!attributeNames.has("secure")) cookieFlags.missingSecure += 1;
+          if (!attributeNames.has("httponly")) cookieFlags.missingHttpOnly += 1;
+          if (!attributes.some((attribute) => /^samesite=/i.test(attribute.trim()))) {
+            cookieFlags.missingSameSite += 1;
+          }
+          continue;
+        }
+        const values = observedHeaders.get(header.name.toLowerCase());
+        if (values && header.value) values.push(header.value);
+      }
+
+      finish(null, {
+        headers: Object.fromEntries(
+          [...observedHeaders].filter(([, values]) => values.length)
+        ),
+        cookieFlags,
+        statusCode: details.statusCode
+      });
+    };
+
+    const onTabUpdated = (updatedTabId, changeInfo) => {
+      if (updatedTabId !== tabId || !changeInfo.url) return;
+      try {
+        if (new URL(changeInfo.url).hostname !== target.hostname) {
+          finish(
+            new Error("Die Website hat auf einen anderen Host umgeleitet. Öffne das Ziel und starte die Prüfung erneut.")
+          );
+        }
+      } catch {
+        finish(new Error("Firefox konnte die Website nach dem Neuladen nicht öffnen."));
+      }
+    };
+
+    const onRequestError = (details) => {
+      if (details.tabId === tabId && details.frameId === 0) {
+        finish(new Error(`Firefox konnte die Website nicht laden (${details.error}).`));
+      }
     };
 
     try {
       browser.webRequest.onHeadersReceived.addListener(
         onHeadersReceived,
         {
-          urls: [`${new URL(origin).protocol}//${new URL(origin).hostname}/*`],
+          urls: [`http://${target.hostname}/*`, `https://${target.hostname}/*`],
           tabId,
           types: ["main_frame"]
         },
         ["responseHeaders"]
       );
       listening = true;
+      browser.webRequest.onErrorOccurred.addListener(onRequestError, {
+        urls: [`http://${target.hostname}/*`, `https://${target.hostname}/*`],
+        tabId,
+        types: ["main_frame"]
+      });
+      watchingRequestErrors = true;
+      browser.tabs.onUpdated.addListener(onTabUpdated);
+      watchingTab = true;
       timer = setTimeout(
         () => finish(new Error("Nach dem Neuladen wurde kein Server-Header empfangen.")),
         15000
