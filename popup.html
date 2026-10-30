@@ -16,14 +16,21 @@
     </header>
 
     <main>
-      <button id="scan" type="button">Seite prüfen</button>
-      <p id="status" role="status" aria-live="polite">Analyse wird vorbereitet …</p>
-      <section id="technologies" aria-label="Erkannte Technologien"></section>
+      <label class="authorization">
+        <input id="authorized" type="checkbox">
+        <span>Ich bin berechtigt, diese Website zu prüfen.</span>
+      </label>
+      <button id="scan" type="button" disabled>Server-Version prüfen</button>
+      <p id="status" role="status" aria-live="polite">
+        Die Prüfung liest den Server-Header und lädt die Seite dafür einmal neu.
+      </p>
+      <section id="server" aria-label="Erkannter Webserver"></section>
       <section id="results" aria-label="Mögliche CVEs"></section>
       <p class="disclaimer">
-        Treffer sind keyword-basierte Hinweise, kein Nachweis einer Schwachstelle.
-        Versionsstände lassen sich im Browser meist nicht sicher feststellen.
-        Es werden keine Seiteninhalte oder URLs an NVD gesendet.
+        Die Server-Angabe kann fehlen, verfälscht oder nur ein Proxy sein.
+        CVE-Treffer sind Hinweise für die exakt gemeldete Version, kein
+        Nachweis einer verwundbaren Website. Die Website-Adresse wird nicht an
+        NVD gesendet.
       </p>
     </main>
     <script src="popup.js"></script>

@@ -59,23 +59,31 @@ button:disabled {
   opacity: 0.7;
 }
 
+.authorization {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 4px 0 12px;
+}
+
+.authorization input {
+  margin: 4px 0 0;
+}
+
 #status {
   min-height: 21px;
   margin: 10px 0;
 }
 
-.technology-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin: 8px 0 12px;
+.server-info {
+  margin: 12px 0;
+  padding: 10px;
+  border: 1px solid rgba(128, 128, 128, 0.4);
+  border-radius: 8px;
 }
 
-.technology {
-  padding: 3px 8px;
-  border: 1px solid rgba(128, 128, 128, 0.4);
-  border-radius: 999px;
-  font-size: 12px;
+.server-info strong {
+  display: block;
 }
 
 .finding {
