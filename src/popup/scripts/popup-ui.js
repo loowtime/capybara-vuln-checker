@@ -276,8 +276,13 @@ window.CapybaraUI = {
         ? ` · veröffentlicht ${new Date(finding.published).toLocaleDateString("de-DE")}`
         : "";
       provenance.textContent =
-        `${finding.product} ${finding.productVersion} · ${finding.status} · ${finding.source}${published}`;
+        `${finding.product} ${finding.productVersion ?? "Version unbekannt"} · ${finding.status} · ${finding.source}${published}`;
       article.append(summary, description, provenance);
+
+      const priority = document.createElement("span");
+      priority.className = `risk-label risk-${finding.risk?.level ?? "unbestimmt"}`;
+      priority.textContent = `Priorität: ${finding.risk?.level ?? "unbestimmt"}`;
+      article.append(priority);
 
       const hints = [...(finding.impactHints ?? []), ...(finding.attackHints ?? [])];
       if (hints.length) {
@@ -297,6 +302,39 @@ window.CapybaraUI = {
         assessment.textContent = finding.assessment;
         article.append(assessment);
       }
+      if (finding.epss) {
+        const epss = document.createElement("p");
+        epss.textContent =
+          `FIRST EPSS: ${(finding.epss.score * 100).toFixed(2)} % Ausnutzungswahrscheinlichkeit` +
+          `${finding.epss.percentile === null ? "" : ` · Perzentil ${(finding.epss.percentile * 100).toFixed(1)} %`}` +
+          `${finding.epss.date ? ` · Stand ${finding.epss.date}` : ""}`;
+        article.append(epss);
+      }
+      if (finding.kev) {
+        const kev = document.createElement("p");
+        kev.textContent = finding.kev.known
+          ? `CISA KEV: bekannt ausgenutzt${finding.kev.dateAdded ? ` · aufgenommen ${finding.kev.dateAdded}` : ""}${finding.kev.knownRansomwareCampaignUse ? ` · Ransomware-Kampagnen: ${finding.kev.knownRansomwareCampaignUse}` : ""}`
+          : "CISA KEV: kein Eintrag im abgerufenen Katalog";
+        article.append(kev);
+      }
+      if (finding.risk?.reasons?.length) {
+        const reasons = document.createElement("ul");
+        reasons.className = "risk-reasons";
+        for (const reason of finding.risk.reasons) {
+          const item = document.createElement("li");
+          item.textContent = reason;
+          reasons.append(item);
+        }
+        article.append(reasons);
+      }
+      const recommendation = document.createElement("p");
+      recommendation.className = "recommendation";
+      recommendation.textContent = finding.recommendation ??
+        (finding.kev?.known
+          ? "Empfehlung: Herstellerhinweise und verfügbare Sicherheitsupdates priorisiert prüfen; Deployment-Version und mögliche Backports verifizieren."
+          : "Empfehlung: Hersteller-Advisory, betroffene/fixe Versionen und Deployment-Patchstand prüfen, bevor eine Maßnahme festgelegt wird.");
+      article.append(recommendation);
+      if (finding.evidence) article.append(this.createEvidenceDisclosure(finding));
       if (finding.relatedIds?.length) {
         const aliases = document.createElement("small");
         aliases.textContent = `Weitere Advisory-IDs: ${finding.relatedIds.join(", ")}`;

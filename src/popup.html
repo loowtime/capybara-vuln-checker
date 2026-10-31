@@ -24,9 +24,19 @@
       <p id="status" role="status" aria-live="polite">
         Die Prüfung liest Antwort-Header und lädt die Seite dafür einmal neu.
       </p>
+      <section class="actions" aria-label="Berichte und SBOM">
+        <button id="export-json" type="button" disabled>JSON-Bericht</button>
+        <button id="export-csv" type="button" disabled>CSV exportieren</button>
+        <button id="print-report" type="button" disabled>Drucken / PDF</button>
+        <label class="file-picker" for="sbom-file">CycloneDX-/SPDX-SBOM importieren</label>
+        <input id="sbom-file" type="file" accept=".json,application/json">
+        <button id="analyze-sbom" type="button" disabled>SBOM lokal analysieren</button>
+        <p id="sbom-status" role="status" aria-live="polite"></p>
+      </section>
       <section id="server" aria-label="Erkannter Webserver"></section>
       <section id="components" aria-label="Erkannte CMS-Komponenten"></section>
       <section id="posture" aria-label="Passive Sicherheitsprüfung"></section>
+      <section id="history" aria-label="Lokaler Scan-Verlauf"></section>
       <section id="results" aria-label="Mögliche CVEs"></section>
       <p class="disclaimer">
         Die Prüfung ist passiv: keine Payloads, Login-Tests oder Exploits.
