@@ -16,7 +16,10 @@
     "activeTab",
     "webRequest",
     "https://services.nvd.nist.gov/*",
-    "https://api.osv.dev/*"
+    "https://api.osv.dev/*",
+    "https://www.cisa.gov/*",
+    "https://api.first.org/*",
+    "storage"
   ],
   "optional_permissions": [
     "http://*/*",
