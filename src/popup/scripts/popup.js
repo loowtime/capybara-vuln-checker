@@ -152,10 +152,14 @@ async function scanWebsite() {
     const headers = response.headers ?? {};
     const inspection = CapybaraDetection.inspectResponseHeaders(headers);
     const components = pageInspection.components;
-    inspection.products = mergeProducts(inspection.products, components);
+    inspection.products = CapybaraCpeMatcher.assessAll(
+      mergeProducts(inspection.products, components)
+    );
     inspection.results = new Map();
 
-    const queryable = inspection.products.filter((product) => product.version && product.cpe);
+    const queryable = inspection.products.filter((product) =>
+      product.version && product.cpeAssessment?.valid
+    );
     const findings = CapybaraNvd.advisoryFindings(components);
     const sourceErrors = [];
     const observedAt = new Date().toISOString();
@@ -179,6 +183,7 @@ async function scanWebsite() {
             ...(finding.technicalEvidence ?? {}),
             detectionSource: product.source,
             versionStatus: product.versionStatus ?? "observed-unverified",
+            cpeAssessment: product.cpeAssessment,
             rawBanner: product.raw ?? null
           }
         })));
@@ -225,8 +230,7 @@ async function scanWebsite() {
         }
       };
     }), { observedAt });
-    const confidenceFindings = CapybaraConfidence.assessAll(enrichedFindings);
-    const allFindings = CapybaraRisk.prioritizeAll(confidenceFindings, {
+    const allFindings = CapybaraRisk.prioritizeAll(enrichedFindings, {
       exposure: "browser-observed"
     });
     const posture = [
