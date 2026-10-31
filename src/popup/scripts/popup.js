@@ -5,7 +5,15 @@ const serverElement = document.querySelector("#server");
 const componentsElement = document.querySelector("#components");
 const postureElement = document.querySelector("#posture");
 const resultsElement = document.querySelector("#results");
+const historyElement = document.querySelector("#history");
+const sbomFileInput = document.querySelector("#sbom-file");
+const sbomStatus = document.querySelector("#sbom-status");
+const analyzeSbomButton = document.querySelector("#analyze-sbom");
+const exportJsonButton = document.querySelector("#export-json");
+const exportCsvButton = document.querySelector("#export-csv");
+const printReportButton = document.querySelector("#print-report");
 let activePage = null;
+let currentReport = null;
 
 authorizationCheckbox.addEventListener("change", () => {
   scanButton.disabled = !authorizationCheckbox.checked || !activePage;
@@ -27,6 +35,7 @@ async function initializePopup() {
   try {
     activePage = await getActiveWebTab();
     scanButton.disabled = !authorizationCheckbox.checked;
+    await renderHistory(activePage.url.origin);
   } catch (error) {
     statusElement.textContent = error.message;
   }
@@ -58,19 +67,58 @@ function uniqueFindings(findings) {
   for (const finding of findings) {
     const key = `${finding.id}:${finding.product}`;
     const previous = unique.get(key);
-    if (!previous || finding.source === "Kuratiertes Advisory") {
-      unique.set(key, { ...previous, ...finding });
+    if (!previous) {
+      unique.set(key, finding);
+      continue;
     }
+    const preferred = previous.score === null && finding.score !== null ? finding : previous;
+    const secondary = preferred === previous ? finding : previous;
+    unique.set(key, {
+      ...secondary,
+      ...preferred,
+      relatedSources: [...new Set([
+        ...(previous.relatedSources ?? []),
+        ...(finding.relatedSources ?? []),
+        previous.source,
+        finding.source
+      ])],
+      relatedIds: [...new Set([
+        ...(previous.relatedIds ?? []),
+        ...(finding.relatedIds ?? [])
+      ])]
+    });
   }
   return [...unique.values()];
+}
+
+async function renderHistory(origin, change = null) {
+  if (!change) {
+    const snapshots = await CapybaraHistory.read(origin);
+    if (!snapshots.length) {
+      CapybaraUI.renderHistory(historyElement, null);
+      return;
+    }
+    change = { baseline: true, scannedAt: snapshots.at(-1).scannedAt };
+  }
+  CapybaraUI.renderHistory(historyElement, change);
+}
+
+function setReport(report) {
+  currentReport = report;
+  const enabled = Boolean(report);
+  exportJsonButton.disabled = !enabled;
+  exportCsvButton.disabled = !enabled;
+  printReportButton.disabled = !enabled;
 }
 
 async function scanWebsite() {
   scanButton.disabled = true;
   statusElement.textContent = "Antwort-Header werden gelesen …";
+  setReport(null);
   serverElement.replaceChildren();
   componentsElement.replaceChildren();
   postureElement.replaceChildren();
+  historyElement.replaceChildren();
   resultsElement.replaceChildren();
 
   try {
@@ -110,6 +158,7 @@ async function scanWebsite() {
     const queryable = inspection.products.filter((product) => product.version && product.cpe);
     const findings = CapybaraNvd.advisoryFindings(components);
     const sourceErrors = [];
+    const observedAt = new Date().toISOString();
 
     for (const [index, product] of queryable.entries()) {
       statusElement.textContent =
@@ -123,7 +172,15 @@ async function scanWebsite() {
         findings.push(...result.findings.map((finding) => ({
           ...finding,
           product: product.name,
-          productVersion: product.version
+          productVersion: product.version,
+          cpe: product.cpe,
+          confidence: product.confidence ?? "medium",
+          technicalEvidence: {
+            ...(finding.technicalEvidence ?? {}),
+            detectionSource: product.source,
+            versionStatus: product.versionStatus ?? "observed-unverified",
+            rawBanner: product.raw ?? null
+          }
         })));
       } catch (error) {
         inspection.results.set(product.name, { error: error.message });
@@ -147,13 +204,31 @@ async function scanWebsite() {
       }
     }
 
+    statusElement.textContent = "CISA KEV und FIRST EPSS werden abgeglichen …";
+    const intel = await CapybaraThreatIntel.enrichFindings(findings);
+    findings.splice(0, findings.length, ...intel.findings);
+    sourceErrors.push(...intel.errors);
+
     const failed = [...inspection.results.values()].filter((result) => result.error).length;
-    const allFindings = uniqueFindings(findings).sort(
-      (left, right) => (right.score ?? -1) - (left.score ?? -1)
-    );
-    CapybaraUI.renderServer(serverElement, headers, inspection);
-    CapybaraUI.renderComponents(componentsElement, components);
-    CapybaraUI.renderPosture(postureElement, [
+    const componentsByName = new Map(components.map((component) => [component.name, component]));
+    const enrichedFindings = CapybaraEvidence.attachAll(uniqueFindings(findings).map((finding) => {
+      const component = componentsByName.get(finding.product) ??
+        inspection.products.find((product) => product.name === finding.product);
+      return {
+        ...finding,
+        confidence: finding.confidence ?? component?.confidence ?? "low",
+        technicalEvidence: {
+          ...(finding.technicalEvidence ?? {}),
+          detectedVersion: finding.productVersion ?? component?.version ?? null,
+          versionStatus: component?.versionStatus ?? finding.technicalEvidence?.versionStatus ?? "unknown",
+          detectionSource: component?.source ?? finding.source
+        }
+      };
+    }), { observedAt });
+    const allFindings = CapybaraRisk.prioritizeAll(enrichedFindings, {
+      exposure: "browser-observed"
+    });
+    const posture = [
       ...CapybaraPosture.assessResponse(
         headers,
         response.cookieFlags ?? {
@@ -167,23 +242,68 @@ async function scanWebsite() {
         url.protocol === "https:"
       ),
       ...pageInspection.security
-    ]);
+    ].map((finding) => CapybaraEvidence.attach({
+      ...finding,
+      source: finding.source ?? "Passive HTTP-Header-/DOM-Prüfung",
+      detectionMethod: finding.detectionMethod ?? "Header-/DOM-Auswertung ohne zusätzliche Website-Anfragen",
+      confidence: finding.confidence ?? "medium",
+      technicalEvidence: finding.technicalEvidence ?? {
+        check: finding.title,
+        observedCondition: finding.detail
+      }
+    }, { observedAt }));
+
+    CapybaraUI.renderServer(serverElement, headers, inspection);
+    CapybaraUI.renderComponents(componentsElement, components);
+    CapybaraUI.renderPosture(postureElement, posture);
     CapybaraUI.renderFindings(
       resultsElement,
-      allFindings.slice(0, 50),
+      allFindings.slice(0, 100),
       queryable.length + osvComponents.length,
-      failed + sourceErrors.length,
+      failed,
       sourceErrors
     );
 
-    const highCount = allFindings.filter(
-      (finding) => finding.score !== null && finding.score > 8
+    let history;
+    try {
+      history = await CapybaraHistory.record(url.origin, {
+        scannedAt: observedAt,
+        findings: allFindings,
+        components,
+        headers
+      });
+      await renderHistory(url.origin, history);
+    } catch (error) {
+      sourceErrors.push(`Lokale Historie: ${error.message}`);
+      CapybaraUI.renderFindings(
+        resultsElement,
+        allFindings.slice(0, 100),
+        queryable.length + osvComponents.length,
+        failed,
+        sourceErrors
+      );
+    }
+
+    const highCount = allFindings.filter((finding) =>
+      ["kritisch", "hoch"].includes(finding.risk.level)
     ).length;
+    const report = {
+      format: "capybara-vuln-check-report",
+      version: 1,
+      scannedAt: observedAt,
+      scanner: "Capybara Vuln Check",
+      components: CapybaraEvidence.attachAll(components, { observedAt }),
+      posture,
+      findings: allFindings,
+      history: history ?? null,
+      sourceErrors
+    };
+    setReport(report);
     statusElement.textContent =
-      `${inspection.products.length} Dienst(e), ${allFindings.length} CVE-Kandidat(en), ` +
-      `davon ${highCount} mit CVSS über 8,0` +
+      `${inspection.products.length + components.length} Komponente(n), ${allFindings.length} CVE-Kandidat(en), ` +
+      `${highCount} mit hoher/kritischer Priorität` +
       `${failed ? `; ${failed} NVD-Abfrage(n) fehlgeschlagen` : ""}` +
-      `${sourceErrors.length ? `; ${sourceErrors.length} OSV-Abfrage(n) fehlgeschlagen` : ""}.`;
+      `${sourceErrors.length ? `; ${sourceErrors.length} Quellen-/Speicherhinweis(e)` : ""}.`;
   } catch (error) {
     statusElement.textContent =
       error.message || "Die Server-Version konnte nicht geprüft werden.";
@@ -191,6 +311,80 @@ async function scanWebsite() {
     scanButton.disabled = !authorizationCheckbox.checked || !activePage;
   }
 }
+
+sbomFileInput.addEventListener("change", () => {
+  const file = sbomFileInput.files?.[0];
+  analyzeSbomButton.disabled = !file;
+  sbomStatus.textContent = file ? `${file.name} ausgewählt · lokal verarbeitet` : "";
+});
+
+analyzeSbomButton.addEventListener("click", async () => {
+  const file = sbomFileInput.files?.[0];
+  if (!file) return;
+  analyzeSbomButton.disabled = true;
+  sbomStatus.textContent = "SBOM wird lokal eingelesen …";
+  try {
+    const parsed = CapybaraSbom.parse(await file.text());
+    const findings = [];
+    const errors = [];
+    for (const component of parsed.components.filter((item) => item.osvPackage && item.version)) {
+      try {
+        findings.push(...await CapybaraOsv.lookupPackage({
+          ...component,
+          name: component.name,
+          confidence: component.confidence
+        }));
+      } catch (error) {
+        errors.push(`${component.name}: ${error.message}`);
+      }
+    }
+    const intel = await CapybaraThreatIntel.enrichFindings(findings);
+    errors.push(...intel.errors);
+    const observedAt = new Date().toISOString();
+    const normalized = CapybaraEvidence.attachAll(uniqueFindings(intel.findings), {
+      observedAt,
+      detectionMethod: "Abgleich deklarierter SBOM-Paketkoordinaten mit OSV",
+      confidence: "medium"
+    }).map((finding) => ({
+      ...finding,
+      technicalEvidence: {
+        ...finding.technicalEvidence,
+        sbomFormat: parsed.format,
+        versionStatus: "declared-unverified"
+      }
+    }));
+    const prioritized = CapybaraRisk.prioritizeAll(normalized, { exposure: "sbom" });
+    CapybaraUI.renderComponents(componentsElement, parsed.components);
+    CapybaraUI.renderFindings(resultsElement, prioritized, parsed.components.length, 0, errors);
+    setReport({
+      format: "capybara-sbom-report",
+      version: 1,
+      scannedAt: observedAt,
+      scanner: "Capybara Vuln Check",
+      sbomFormat: parsed.format,
+      components: parsed.components,
+      findings: prioritized,
+      sourceErrors: errors
+    });
+    sbomStatus.textContent =
+      `${parsed.format}: ${parsed.components.length} Komponente(n), ${prioritized.length} Advisory-Kandidat(en). ` +
+      "Versionsangaben sind SBOM-Deklarationen und nicht gegen ein Deployment verifiziert.";
+  } catch (error) {
+    sbomStatus.textContent = error.message || "SBOM konnte nicht analysiert werden.";
+  } finally {
+    analyzeSbomButton.disabled = false;
+  }
+});
+
+exportJsonButton.addEventListener("click", () => {
+  if (currentReport) CapybaraReports.exportJson(currentReport);
+});
+exportCsvButton.addEventListener("click", () => {
+  if (currentReport) CapybaraReports.exportCsv(currentReport.findings ?? []);
+});
+printReportButton.addEventListener("click", () => {
+  if (currentReport) window.print();
+});
 
 scanButton.addEventListener("click", scanWebsite);
 initializePopup();
