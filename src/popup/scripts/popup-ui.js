@@ -311,6 +311,76 @@ window.CapybaraUI = {
     }
   },
 
+  renderHistory(element, change) {
+    element.replaceChildren();
+    const disclosure = document.createElement("details");
+    disclosure.className = "section-disclosure";
+    const summary = document.createElement("summary");
+    summary.textContent = "Lokale Scan-Historie";
+    disclosure.append(summary);
+    const text = document.createElement("p");
+    if (!change) {
+      text.textContent = "Noch kein Verlauf für diese Website. Es werden nur lokale Kurz-Snapshots gespeichert.";
+    } else if (change.baseline) {
+      text.textContent = `Lokaler Verlauf vorhanden · letzter Scan ${new Date(change.scannedAt).toLocaleString("de-DE")}.`;
+    } else {
+      text.textContent =
+        `${change.newFindings.length} neue · ${change.resolvedFindings.length} nicht mehr erkannte CVE(s), ` +
+        `${change.versionChanges.length} Versionsänderung(en), ${change.headerChanges.length} Header-Änderung(en).`;
+    }
+    disclosure.append(text);
+    if (change && !change.baseline) {
+      const lists = [
+        ["Neue CVE-Kandidaten", change.newFindings],
+        ["Nicht mehr erkannte Kandidaten", change.resolvedFindings],
+        ["Versionsänderungen", change.versionChanges.map((item) =>
+          `${item.component}: ${item.from ?? "unbekannt"} → ${item.to ?? "unbekannt"}`
+        )],
+        ["Geänderte Security-Header", change.headerChanges]
+      ];
+      for (const [title, values] of lists) {
+        if (!values.length) continue;
+        const note = document.createElement("p");
+        note.textContent = `${title}: ${values.map((item) =>
+          typeof item === "string" ? item : item.id
+        ).join(", ")}`;
+        disclosure.append(note);
+      }
+      if (change.previousScanAt) {
+        const timestamp = document.createElement("small");
+        timestamp.textContent = `Vergleich mit ${new Date(change.previousScanAt).toLocaleString("de-DE")}`;
+        disclosure.append(timestamp);
+      }
+    }
+    element.append(disclosure);
+  },
+
+  createEvidenceDisclosure(finding) {
+    const disclosure = document.createElement("details");
+    disclosure.className = "evidence-disclosure";
+    const summary = document.createElement("summary");
+    summary.textContent = "Evidenz & technische Details";
+    const facts = document.createElement("dl");
+    const entries = [
+      ["Quelle", finding.source],
+      ["Erkennung", finding.detectionMethod],
+      ["Beobachtet", finding.observedAt],
+      ["Vertrauen", finding.confidence],
+      ["Weitere Quellen", finding.relatedSources?.filter((source) => source !== finding.source).join(", ") || "—"]
+    ];
+    for (const [label, value] of entries) {
+      const term = document.createElement("dt");
+      term.textContent = label;
+      const description = document.createElement("dd");
+      description.textContent = value ?? "Unbekannt";
+      facts.append(term, description);
+    }
+    const raw = document.createElement("pre");
+    raw.textContent = JSON.stringify(finding.technicalEvidence ?? {}, null, 2);
+    disclosure.append(summary, facts, raw);
+    return disclosure;
+  },
+
   createNote(title, text) {
     const disclosure = document.createElement("details");
     disclosure.className = "inline-note";
