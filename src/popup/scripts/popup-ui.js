@@ -23,8 +23,8 @@ window.CapybaraUI = {
       title.textContent = component.name;
       const details = document.createElement("p");
       details.textContent = `${component.category} · ${
-        component.version ? `Version ${component.version}` : "Version unbekannt"
-      } · ${component.source}`;
+        component.version ? `Versionshinweis ${component.version} (nicht verifiziert)` : "Version unbekannt"
+      } · ${component.source} · Vertrauen: ${component.confidence ?? "unbekannt"}`;
       item.append(title, details);
 
       if (component.note) {
@@ -164,6 +164,9 @@ window.CapybaraUI = {
       const detail = document.createElement("p");
       detail.textContent = finding.detail;
       item.append(summary, detail);
+      if (finding.evidence) {
+        item.append(this.createEvidenceDisclosure(finding));
+      }
       disclosure.append(item);
     }
     element.append(disclosure);

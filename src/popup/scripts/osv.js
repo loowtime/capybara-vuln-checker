@@ -43,8 +43,16 @@ window.CapybaraOsv = {
         status: "OSV",
         source: "OSV/npm",
         sourceUrl: `https://osv.dev/vulnerability/${encodeURIComponent(vulnerability.id)}`,
+        detectionMethod: "Exakte OSV-Paketkoordinate und deklarierte/erkannte Version abgefragt",
         product: component.name,
         productVersion: component.version,
+        confidence: component.confidence ?? "low",
+        technicalEvidence: {
+          package: component.osvPackage,
+          versionStatus: component.versionStatus ?? "unverified-hint",
+          withdrawn: false,
+          aliases
+        },
         impactHints: window.CapybaraNvd.assessImpact(
           vulnerability.summary ?? vulnerability.details ?? ""
         ),
