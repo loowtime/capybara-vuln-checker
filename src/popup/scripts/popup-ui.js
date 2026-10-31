@@ -23,8 +23,8 @@ window.CapybaraUI = {
       title.textContent = component.name;
       const details = document.createElement("p");
       details.textContent = `${component.category} · ${
-        component.version ? `Version ${component.version}` : "Version unbekannt"
-      } · ${component.source}`;
+        component.version ? `Versionshinweis ${component.version} (nicht verifiziert)` : "Version unbekannt"
+      } · ${component.source} · Vertrauen: ${component.confidence ?? "unbekannt"}`;
       item.append(title, details);
 
       if (component.note) {
@@ -164,6 +164,9 @@ window.CapybaraUI = {
       const detail = document.createElement("p");
       detail.textContent = finding.detail;
       item.append(summary, detail);
+      if (finding.evidence) {
+        item.append(this.createEvidenceDisclosure(finding));
+      }
       disclosure.append(item);
     }
     element.append(disclosure);
@@ -273,8 +276,13 @@ window.CapybaraUI = {
         ? ` · veröffentlicht ${new Date(finding.published).toLocaleDateString("de-DE")}`
         : "";
       provenance.textContent =
-        `${finding.product} ${finding.productVersion} · ${finding.status} · ${finding.source}${published}`;
+        `${finding.product} ${finding.productVersion ?? "Version unbekannt"} · ${finding.status} · ${finding.source}${published}`;
       article.append(summary, description, provenance);
+
+      const priority = document.createElement("span");
+      priority.className = `risk-label risk-${finding.risk?.level ?? "unbestimmt"}`;
+      priority.textContent = `Priorität: ${finding.risk?.level ?? "unbestimmt"}`;
+      article.append(priority);
 
       const hints = [...(finding.impactHints ?? []), ...(finding.attackHints ?? [])];
       if (hints.length) {
@@ -294,6 +302,39 @@ window.CapybaraUI = {
         assessment.textContent = finding.assessment;
         article.append(assessment);
       }
+      if (finding.epss) {
+        const epss = document.createElement("p");
+        epss.textContent =
+          `FIRST EPSS: ${(finding.epss.score * 100).toFixed(2)} % Ausnutzungswahrscheinlichkeit` +
+          `${finding.epss.percentile === null ? "" : ` · Perzentil ${(finding.epss.percentile * 100).toFixed(1)} %`}` +
+          `${finding.epss.date ? ` · Stand ${finding.epss.date}` : ""}`;
+        article.append(epss);
+      }
+      if (finding.kev) {
+        const kev = document.createElement("p");
+        kev.textContent = finding.kev.known
+          ? `CISA KEV: bekannt ausgenutzt${finding.kev.dateAdded ? ` · aufgenommen ${finding.kev.dateAdded}` : ""}${finding.kev.knownRansomwareCampaignUse ? ` · Ransomware-Kampagnen: ${finding.kev.knownRansomwareCampaignUse}` : ""}`
+          : "CISA KEV: kein Eintrag im abgerufenen Katalog";
+        article.append(kev);
+      }
+      if (finding.risk?.reasons?.length) {
+        const reasons = document.createElement("ul");
+        reasons.className = "risk-reasons";
+        for (const reason of finding.risk.reasons) {
+          const item = document.createElement("li");
+          item.textContent = reason;
+          reasons.append(item);
+        }
+        article.append(reasons);
+      }
+      const recommendation = document.createElement("p");
+      recommendation.className = "recommendation";
+      recommendation.textContent = finding.recommendation ??
+        (finding.kev?.known
+          ? "Empfehlung: Herstellerhinweise und verfügbare Sicherheitsupdates priorisiert prüfen; Deployment-Version und mögliche Backports verifizieren."
+          : "Empfehlung: Hersteller-Advisory, betroffene/fixe Versionen und Deployment-Patchstand prüfen, bevor eine Maßnahme festgelegt wird.");
+      article.append(recommendation);
+      if (finding.evidence) article.append(this.createEvidenceDisclosure(finding));
       if (finding.relatedIds?.length) {
         const aliases = document.createElement("small");
         aliases.textContent = `Weitere Advisory-IDs: ${finding.relatedIds.join(", ")}`;
@@ -309,6 +350,76 @@ window.CapybaraUI = {
     if (sourceErrors.length) {
       element.append(this.createNote("Fehler bei CVE-Quellen", sourceErrors.join(" · ")));
     }
+  },
+
+  renderHistory(element, change) {
+    element.replaceChildren();
+    const disclosure = document.createElement("details");
+    disclosure.className = "section-disclosure";
+    const summary = document.createElement("summary");
+    summary.textContent = "Lokale Scan-Historie";
+    disclosure.append(summary);
+    const text = document.createElement("p");
+    if (!change) {
+      text.textContent = "Noch kein Verlauf für diese Website. Es werden nur lokale Kurz-Snapshots gespeichert.";
+    } else if (change.baseline) {
+      text.textContent = `Lokaler Verlauf vorhanden · letzter Scan ${new Date(change.scannedAt).toLocaleString("de-DE")}.`;
+    } else {
+      text.textContent =
+        `${change.newFindings.length} neue · ${change.resolvedFindings.length} nicht mehr erkannte CVE(s), ` +
+        `${change.versionChanges.length} Versionsänderung(en), ${change.headerChanges.length} Header-Änderung(en).`;
+    }
+    disclosure.append(text);
+    if (change && !change.baseline) {
+      const lists = [
+        ["Neue CVE-Kandidaten", change.newFindings],
+        ["Nicht mehr erkannte Kandidaten", change.resolvedFindings],
+        ["Versionsänderungen", change.versionChanges.map((item) =>
+          `${item.component}: ${item.from ?? "unbekannt"} → ${item.to ?? "unbekannt"}`
+        )],
+        ["Geänderte Security-Header", change.headerChanges]
+      ];
+      for (const [title, values] of lists) {
+        if (!values.length) continue;
+        const note = document.createElement("p");
+        note.textContent = `${title}: ${values.map((item) =>
+          typeof item === "string" ? item : item.id
+        ).join(", ")}`;
+        disclosure.append(note);
+      }
+      if (change.previousScanAt) {
+        const timestamp = document.createElement("small");
+        timestamp.textContent = `Vergleich mit ${new Date(change.previousScanAt).toLocaleString("de-DE")}`;
+        disclosure.append(timestamp);
+      }
+    }
+    element.append(disclosure);
+  },
+
+  createEvidenceDisclosure(finding) {
+    const disclosure = document.createElement("details");
+    disclosure.className = "evidence-disclosure";
+    const summary = document.createElement("summary");
+    summary.textContent = "Evidenz & technische Details";
+    const facts = document.createElement("dl");
+    const entries = [
+      ["Quelle", finding.source],
+      ["Erkennung", finding.detectionMethod],
+      ["Beobachtet", finding.observedAt],
+      ["Vertrauen", finding.confidence],
+      ["Weitere Quellen", finding.relatedSources?.filter((source) => source !== finding.source).join(", ") || "—"]
+    ];
+    for (const [label, value] of entries) {
+      const term = document.createElement("dt");
+      term.textContent = label;
+      const description = document.createElement("dd");
+      description.textContent = value ?? "Unbekannt";
+      facts.append(term, description);
+    }
+    const raw = document.createElement("pre");
+    raw.textContent = JSON.stringify(finding.technicalEvidence ?? {}, null, 2);
+    disclosure.append(summary, facts, raw);
+    return disclosure;
   },
 
   createNote(title, text) {
