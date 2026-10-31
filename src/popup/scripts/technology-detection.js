@@ -117,7 +117,18 @@ window.CapybaraDetection = (() => {
     ["Oracle WebLogic", /\bweblogic\b/i, "Java-Application-Server"],
     ["Microsoft Exchange", /\b(exchange|outlook web access|owa)\b/i, "Mail-Server"]
   ];
+
+  function normalizeHeaders(headers) {
+    if (!headers || typeof headers !== "object" || Array.isArray(headers)) return {};
+    return Object.fromEntries(Object.entries(headers).map(([name, values]) => [
+      name.toLowerCase(),
+      (Array.isArray(values) ? values : [values])
+        .filter((value) => typeof value === "string")
+    ]));
+  }
+
   function inspectResponseHeaders(headers) {
+    headers = normalizeHeaders(headers);
     const products = new Map();
     const text = Object.entries(headers)
       .map(([name, values]) => `${name}: ${values.join(", ")}`)
@@ -134,6 +145,8 @@ window.CapybaraDetection = (() => {
             previous.versions = [...new Set([...previous.versions, match[1]])];
             previous.version = previous.versions.length === 1 ? match[1] : null;
             previous.cpe = previous.version ? signature.cpe?.(previous.version) : null;
+            previous.versionStatus = previous.version ? "header-observed-unverified" : "ambiguous";
+            previous.confidence = previous.version ? "medium" : "low";
             previous.source = [...new Set([...previous.source.split(", "), headerName])].join(", ");
             previous.raw = [...new Set([...previous.raw.split("\n"), value])].join("\n");
           } else {
@@ -142,6 +155,8 @@ window.CapybaraDetection = (() => {
               version: match[1],
               versions: [match[1]],
               confidence: "medium",
+              versionStatus: "header-observed-unverified",
+              detectionMethod: `HTTP-Response-Header "${headerName}"`,
               cpe: signature.cpe?.(match[1]),
               source: headerName,
               raw: value
@@ -153,7 +168,15 @@ window.CapybaraDetection = (() => {
 
     for (const [name, expression, category] of productsWithoutVersion) {
       if (!products.has(name) && expression.test(text)) {
-        products.set(name, { name, category, version: null, source: "HTTP-Header" });
+        products.set(name, {
+          name,
+          category,
+          version: null,
+          confidence: "low",
+          versionStatus: "unknown",
+          detectionMethod: "Technologiebegriff in HTTP-Response-Headern",
+          source: "HTTP-Header"
+        });
       }
     }
 
@@ -228,6 +251,8 @@ window.CapybaraDetection = (() => {
         version: wordpressVersion,
         source: "Generator-Metadatum",
         confidence: "medium",
+        versionStatus: "generator-unverified",
+        detectionMethod: "Generator-Meta-Element im Seiten-DOM",
         cpe: `cpe:2.3:a:wordpress:wordpress:${wordpressVersion}:*:*:*:*:*:*:*`
       });
     }
@@ -240,6 +265,8 @@ window.CapybaraDetection = (() => {
         version: joomlaVersion,
         source: "Generator-Metadatum",
         confidence: "medium",
+        versionStatus: "generator-unverified",
+        detectionMethod: "Generator-Meta-Element im Seiten-DOM",
         cpe: `cpe:2.3:a:joomla:joomla:${joomlaVersion}:*:*:*:*:*:*:*`
       });
     }
@@ -255,7 +282,10 @@ window.CapybaraDetection = (() => {
       const pluginMatch = url.pathname.match(/\/wp-content\/plugins\/([^/]+)/i);
       if (pluginMatch) {
         const slug = pluginMatch[1].toLowerCase();
-        const version = url.searchParams.get("ver");
+        const queryVersion = url.searchParams.get("ver");
+        const version = /^\d+(?:\.\d+){0,3}(?:-[0-9A-Za-z.-]+)?$/.test(queryVersion ?? "")
+          ? queryVersion
+          : null;
         addComponent({
           name: `WordPress-Plugin: ${slug}`,
           slug,
@@ -263,6 +293,8 @@ window.CapybaraDetection = (() => {
           version,
           source: "geladene Plugin-Ressource",
           confidence: "low",
+          versionStatus: version ? "asset-query-unverified" : "unknown",
+          detectionMethod: "Plugin-Pfad und optionaler ver-Parameter einer bereits geladenen Ressource",
           note: version
             ? "Versionshinweis aus Asset-URL; kann eine Datei-/Cacheversion statt der installierten Plugin-Version sein."
             : "Plugin-Pfad sichtbar, Versionsnummer nicht erkennbar."
@@ -270,13 +302,18 @@ window.CapybaraDetection = (() => {
       }
 
       if (/\/(?:components\/com_jce\/|plugins\/editors\/jce\/)/i.test(url.pathname)) {
+        const queryVersion = url.searchParams.get("ver");
         addComponent({
           name: "Joomla JCE",
           slug: "jce",
           category: "Joomla-Editor-Plugin",
-          version: url.searchParams.get("ver"),
+          version: /^\d+(?:\.\d+){0,3}(?:-[0-9A-Za-z.-]+)?$/.test(queryVersion ?? "")
+            ? queryVersion
+            : null,
           source: "geladene JCE-Ressource",
           confidence: "low",
+          versionStatus: "asset-query-unverified",
+          detectionMethod: "Pfad einer bereits geladenen Joomla-JCE-Ressource",
           note: "JCE erkannt; aus öffentlichen Ressourcen ist die installierte Version oft nicht verlässlich ableitbar."
         });
       }
@@ -297,6 +334,8 @@ window.CapybaraDetection = (() => {
             version,
             source: "geladene JavaScript-Ressource",
             confidence: "low",
+            versionStatus: version ? "asset-url-unverified" : "unknown",
+            detectionMethod: "Dateiname/Query-Parameter einer bereits geladenen Ressource",
             cpe: version && library.cpe ? library.cpe(version) : null,
             note: version
               ? "Versionshinweis aus einer öffentlich eingebundenen Asset-URL; vor einer Update-Entscheidung im Deployment bestätigen."
