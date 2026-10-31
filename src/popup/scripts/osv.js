@@ -1,8 +1,9 @@
 window.CapybaraOsv = {
   async lookupPackage(component) {
     if (
-      component.osvPackage?.ecosystem !== "npm" ||
-      !/^\d+\.\d+\.\d+$/.test(component.version ?? "")
+      !component.osvPackage?.ecosystem ||
+      typeof component.osvPackage?.name !== "string" ||
+      !/^[0-9A-Za-z][0-9A-Za-z.+_-]{0,99}$/.test(component.version ?? "")
     ) {
       return [];
     }
@@ -20,7 +21,12 @@ window.CapybaraOsv = {
     }
 
     const data = await response.json();
-    return (data.vulns ?? []).map((vulnerability) => {
+    if (data?.vulns !== undefined && !Array.isArray(data.vulns)) {
+      throw new Error("OSV-Antwort hat ein unerwartetes Format.");
+    }
+    return (data.vulns ?? [])
+      .filter((vulnerability) => !vulnerability.withdrawn)
+      .map((vulnerability) => {
       const aliases = vulnerability.aliases ?? [];
       const cveId = aliases.find((alias) => /^CVE-\d{4}-\d+$/i.test(alias));
       const id = cveId ?? vulnerability.id;
@@ -37,8 +43,16 @@ window.CapybaraOsv = {
         status: "OSV",
         source: "OSV/npm",
         sourceUrl: `https://osv.dev/vulnerability/${encodeURIComponent(vulnerability.id)}`,
+        detectionMethod: "Exakte OSV-Paketkoordinate und deklarierte/erkannte Version abgefragt",
         product: component.name,
         productVersion: component.version,
+        confidence: component.confidence ?? "low",
+        technicalEvidence: {
+          package: component.osvPackage,
+          versionStatus: component.versionStatus ?? "unverified-hint",
+          withdrawn: false,
+          aliases
+        },
         impactHints: window.CapybaraNvd.assessImpact(
           vulnerability.summary ?? vulnerability.details ?? ""
         ),
