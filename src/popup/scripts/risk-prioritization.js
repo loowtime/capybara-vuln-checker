@@ -3,7 +3,9 @@ window.CapybaraRisk = {
     const reasons = [];
     const score = typeof finding.score === "number" ? finding.score : null;
     const epss = typeof finding.epss?.score === "number" ? finding.epss.score : null;
-    const kev = Boolean(finding.kev);
+    const kev =
+      finding.kev === true ||
+      finding.kev?.known === true;
     const confidence = finding.confidence ?? "unknown";
     const networkReachable = finding.attackHints?.includes("Netzwerk-Vektor") ?? false;
     const observedInBrowser = context.exposure === "browser-observed";
