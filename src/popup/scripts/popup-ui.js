@@ -284,13 +284,14 @@ window.CapybaraUI = {
       priority.textContent = `Priorität: ${finding.risk?.level ?? "unbestimmt"}`;
       article.append(priority);
 
-      if (finding.matchConfidence) {
-        const confidence = document.createElement("p");
-        confidence.className = "assessment";
-        confidence.textContent =
-          `Treffervertrauen: ${finding.matchConfidence.score}/100 · ${finding.matchConfidence.label}. ` +
-          finding.matchConfidence.reasons.join(" ");
-        article.append(confidence);
+      const cpeAssessment = finding.technicalEvidence?.cpeAssessment;
+      if (cpeAssessment) {
+        const cpeInfo = document.createElement("p");
+        cpeInfo.className = "assessment";
+        cpeInfo.textContent =
+          `CPE match: ${cpeAssessment.score}/100 (${cpeAssessment.level}) · ` +
+          cpeAssessment.reasons.join(" ");
+        article.append(cpeInfo);
       }
 
       const hints = [...(finding.impactHints ?? []), ...(finding.attackHints ?? [])];
