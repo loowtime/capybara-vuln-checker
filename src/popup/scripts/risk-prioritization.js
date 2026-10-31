@@ -3,9 +3,7 @@ window.CapybaraRisk = {
     const reasons = [];
     const score = typeof finding.score === "number" ? finding.score : null;
     const epss = typeof finding.epss?.score === "number" ? finding.epss.score : null;
-    const kev =
-      finding.kev === true ||
-      finding.kev?.known === true;
+    const kev = finding.kev === true || finding.kev?.known === true;
     const confidence = finding.confidence ?? "unknown";
     const networkReachable = finding.attackHints?.includes("Netzwerk-Vektor") ?? false;
     const observedInBrowser = context.exposure === "browser-observed";
@@ -48,8 +46,10 @@ window.CapybaraRisk = {
       risk: this.prioritize(finding, context)
     })).sort((left, right) => {
       const order = { kritisch: 0, hoch: 1, mittel: 2, niedrig: 3, unbestimmt: 4 };
-      return (order[left.risk.level] ?? 4) - (order[right.risk.level] ?? 4) ||
-        (right.score ?? -1) - (left.score ?? -1);
+    return Number(right.kev === true || right.kev?.known === true) -
+      Number(left.kev === true || left.kev?.known === true) ||
+      (order[left.risk.level] ?? 4) - (order[right.risk.level] ?? 4) ||
+      (right.score ?? -1) - (left.score ?? -1);
     });
   }
 };
