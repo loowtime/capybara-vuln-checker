@@ -168,27 +168,59 @@ window.CapybaraNvd = (() => {
   }
 
   function compareVersions(left, right) {
-    const a = left.split(/[.-]/).map((part) => Number.parseInt(part, 10) || 0);
-    const b = right.split(/[.-]/).map((part) => Number.parseInt(part, 10) || 0);
-    for (let index = 0; index < Math.max(a.length, b.length); index += 1) {
-      const difference = (a[index] ?? 0) - (b[index] ?? 0);
+    const parse = (version) => {
+      const match = String(version).trim().replace(/^v/i, "").match(
+        /^(\d+(?:\.\d+)*)(?:-([0-9A-Za-z.-]+))?(?:\+[0-9A-Za-z.-]+)?$/
+      );
+      return match
+        ? {
+          core: match[1].split(".").map((part) => Number(part)),
+          prerelease: match[2]?.split(".") ?? null
+        }
+        : null;
+    };
+    const a = parse(left);
+    const b = parse(right);
+    if (!a || !b) return null;
+    for (let index = 0; index < Math.max(a.core.length, b.core.length); index += 1) {
+      const difference = (a.core[index] ?? 0) - (b.core[index] ?? 0);
       if (difference) return Math.sign(difference);
+    }
+
+    if (!a.prerelease && !b.prerelease) return 0;
+    if (!a.prerelease) return 1;
+    if (!b.prerelease) return -1;
+    for (let index = 0; index < Math.max(a.prerelease.length, b.prerelease.length); index += 1) {
+      if (a.prerelease[index] === undefined) return -1;
+      if (b.prerelease[index] === undefined) return 1;
+      const leftPart = a.prerelease[index];
+      const rightPart = b.prerelease[index];
+      if (leftPart === rightPart) continue;
+      const leftNumeric = /^\d+$/.test(leftPart);
+      const rightNumeric = /^\d+$/.test(rightPart);
+      if (leftNumeric && rightNumeric) {
+        return Math.sign(Number(leftPart) - Number(rightPart));
+      }
+      if (leftNumeric !== rightNumeric) return leftNumeric ? -1 : 1;
+      return leftPart < rightPart ? -1 : 1;
     }
     return 0;
   }
 
   function versionIsAffected(version, advisory) {
     if (!version) return false;
-    if (!/^\d+(?:\.\d+)*$/.test(version)) return null;
     if (advisory.versionRanges) {
-      return advisory.versionRanges.some(([firstAffected, fixed]) =>
-        compareVersions(version, firstAffected) >= 0 &&
-        compareVersions(version, fixed) < 0
-      );
+      const comparisons = advisory.versionRanges.map(([firstAffected, fixed]) => [
+        compareVersions(version, firstAffected),
+        compareVersions(version, fixed)
+      ]);
+      if (comparisons.some(([start, end]) => start === null || end === null)) return null;
+      return comparisons.some(([start, end]) => start >= 0 && end < 0);
     }
     if (advisory.versionRange) {
-      return compareVersions(version, advisory.versionRange[0]) >= 0 &&
-        compareVersions(version, advisory.versionRange[1]) < 0;
+      const start = compareVersions(version, advisory.versionRange[0]);
+      const end = compareVersions(version, advisory.versionRange[1]);
+      return start === null || end === null ? null : start >= 0 && end < 0;
     }
     return false;
   }
@@ -210,9 +242,11 @@ window.CapybaraNvd = (() => {
       if (component.version && hasKnownRange && !affected) continue;
       const versionMessage = component.version
         ? affected
-          ? `Versionshinweis ${component.version} liegt im bekannten betroffenen Bereich (${advisory.affected}).`
+          ? `Versionshinweis ${component.version} liegt im hinterlegten Bereich (${advisory.affected}); Version und Patchstand im Deployment verifizieren.`
           : hasKnownRange
-            ? `Versionshinweis ${component.version} liegt nicht im hinterlegten Bereich (${advisory.affected}); Version im Deployment verifizieren.`
+            ? affected === null
+              ? `Versionshinweis ${component.version} ist nicht sicher vergleichbar; Bereich ${advisory.affected} manuell prüfen.`
+              : `Versionshinweis ${component.version} liegt nicht im hinterlegten Bereich (${advisory.affected}); Version im Deployment verifizieren.`
             : `Versionshinweis ${component.version}; für dieses Advisory ist kein verlässlicher Versionsbereich hinterlegt. Herstellerhinweise prüfen.`
         : `Version unbekannt. ${advisory.affected}`;
       findings.push({
@@ -247,7 +281,7 @@ window.CapybaraNvd = (() => {
 
     const data = await response.json();
     const findings = (data.vulnerabilities ?? [])
-      .filter(({ cve }) => cve.vulnStatus !== "Rejected")
+      .filter(({ cve }) => !/^rejected$/i.test(cve?.vulnStatus ?? ""))
       .map(({ cve }) => {
         const cvss = getCvss(cve.metrics ?? {});
         const description = cve.descriptions?.find((item) => item.lang === "en")?.value ??
@@ -275,5 +309,12 @@ window.CapybaraNvd = (() => {
     };
   }
 
-  return { advisoryFindings, assessImpact, getAttackHints, fetchProductCves };
+  return {
+    advisoryFindings,
+    assessImpact,
+    compareVersions,
+    getAttackHints,
+    fetchProductCves,
+    versionIsAffected
+  };
 })();
