@@ -1,8 +1,9 @@
 window.CapybaraOsv = {
   async lookupPackage(component) {
     if (
-      component.osvPackage?.ecosystem !== "npm" ||
-      !/^\d+\.\d+\.\d+$/.test(component.version ?? "")
+      !component.osvPackage?.ecosystem ||
+      typeof component.osvPackage?.name !== "string" ||
+      !/^[0-9A-Za-z][0-9A-Za-z.+_-]{0,99}$/.test(component.version ?? "")
     ) {
       return [];
     }
@@ -20,7 +21,12 @@ window.CapybaraOsv = {
     }
 
     const data = await response.json();
-    return (data.vulns ?? []).map((vulnerability) => {
+    if (data?.vulns !== undefined && !Array.isArray(data.vulns)) {
+      throw new Error("OSV-Antwort hat ein unerwartetes Format.");
+    }
+    return (data.vulns ?? [])
+      .filter((vulnerability) => !vulnerability.withdrawn)
+      .map((vulnerability) => {
       const aliases = vulnerability.aliases ?? [];
       const cveId = aliases.find((alias) => /^CVE-\d{4}-\d+$/i.test(alias));
       const id = cveId ?? vulnerability.id;
