@@ -19,6 +19,12 @@ window.CapybaraReports = {
       finding.detectionMethod,
       finding.observedAt,
       finding.description,
+      finding.remediation?.action,
+      finding.remediation?.priority,
+      finding.remediation?.slaDays,
+      finding.remediation?.dueDate,
+      finding.remediation?.status,
+      finding.remediation?.verificationRequired,
       JSON.stringify(finding.technicalEvidence ?? {}),
       finding.risk?.reasons?.join("; ")
     ]);
