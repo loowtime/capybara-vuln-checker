@@ -259,9 +259,17 @@ window.CapybaraNvd = (() => {
         product: component.name,
         productVersion: component.version ?? "unbekannt",
         source: "Kuratiertes Advisory",
+        sourceUrl: `https://nvd.nist.gov/vuln/detail/${encodeURIComponent(advisory.id)}`,
+        detectionMethod: "Abgleich der sichtbaren Produktkennung mit dem lokalen Advisory-Katalog",
         impactHints: assessImpact(advisory.description),
         assessment: versionMessage,
-        confidence: component.confidence ?? "low",
+        confidence: "low",
+        technicalEvidence: {
+          detectedSlug: component.slug ?? null,
+          detectedVersion: component.version ?? null,
+          affectedRange: advisory.affected ?? null,
+          versionStatus: "unverified-hint"
+        },
         potentiallyAffected: component.version && hasKnownRange ? affected : null
       });
     }
@@ -296,7 +304,13 @@ window.CapybaraNvd = (() => {
           description,
           published: cve.published,
           status: cve.vulnStatus ?? "Unknown",
-          source: "NVD-CPE-Abgleich"
+          source: "NVD-CPE-Abgleich",
+          detectionMethod: "CPE-Abfrage für passiv beobachtetes Produkt und Versionshinweis",
+          confidence: "medium",
+          technicalEvidence: {
+            cveStatus: cve.vulnStatus ?? "Unknown",
+            cpeMatch: "CPE-Name wurde an NVD übermittelt; NVD-Eintrag beweist keine tatsächliche Verwundbarkeit."
+          }
         };
       });
 
