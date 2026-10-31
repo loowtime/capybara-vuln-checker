@@ -225,9 +225,12 @@ async function scanWebsite() {
         }
       };
     }), { observedAt });
-    const allFindings = CapybaraRisk.prioritizeAll(enrichedFindings, {
-      exposure: "browser-observed"
-    });
+    const allFindings = CapybaraRemediation.enrichAll(
+      CapybaraRisk.prioritizeAll(enrichedFindings, {
+        exposure: "browser-observed"
+      }),
+      observedAt
+    );
     const posture = [
       ...CapybaraPosture.assessResponse(
         headers,
@@ -353,7 +356,12 @@ analyzeSbomButton.addEventListener("click", async () => {
         versionStatus: "declared-unverified"
       }
     }));
-    const prioritized = CapybaraRisk.prioritizeAll(normalized, { exposure: "sbom" });
+    const prioritized = CapybaraRemediation.enrichAll(
+      CapybaraRisk.prioritizeAll(normalized, {
+        exposure: "sbom"
+      }),
+      observedAt
+    );
     CapybaraUI.renderComponents(componentsElement, parsed.components);
     CapybaraUI.renderFindings(resultsElement, prioritized, parsed.components.length, 0, errors);
     setReport({
@@ -388,3 +396,5 @@ printReportButton.addEventListener("click", () => {
 
 scanButton.addEventListener("click", scanWebsite);
 initializePopup();
+
+
