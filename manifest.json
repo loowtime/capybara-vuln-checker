@@ -1,9 +1,9 @@
 {
-  "manifest_version": 2,
+  "manifest_version": 3,
   "name": "Capybara Vuln Check",
-  "version": "0.1.0",
-  "description": "Passive Hinweise auf Serverdienste und passende CVEs.",
-  "browser_action": {
+  "version": "0.2.0",
+  "description": "Capybara 0.-.0, Vulnerability & Security Scanner (incl. CVE, DOM & Session Security).",
+  "action": {
     "default_title": "Capybara Vuln Check",
     "default_popup": "src/popup.html",
     "default_icon": "assets/icons/capybara.svg"
@@ -15,21 +15,26 @@
   "permissions": [
     "activeTab",
     "webRequest",
+    "storage",
+    "scripting",
+    "cookies"
+  ],
+  "host_permissions": [
+    "<all_urls>",
     "https://services.nvd.nist.gov/*",
     "https://api.osv.dev/*",
     "https://www.cisa.gov/*",
-    "https://api.first.org/*",
-    "storage"
-  ],
-  "optional_permissions": [
-    "http://*/*",
-    "https://*/*"
+    "https://api.first.org/*"
   ],
   "background": {
-    "scripts": [
-      "src/background.js"
-    ]
+    "service_worker": "src/background.js"
   },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["src/content_script.js"]
+    }
+  ],
   "browser_specific_settings": {
     "gecko": {
       "id": "capybara-vuln-check@local",
