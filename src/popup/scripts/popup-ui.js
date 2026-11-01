@@ -1,4 +1,86 @@
 window.CapybaraUI = {
+  renderTls(element, report, observedAt) {
+    element.replaceChildren();
+    const heading = document.createElement("h2");
+    heading.textContent = "TLS-Verbindungsprüfung";
+    const result = document.createElement("div");
+    result.className = "tls-result";
+    const status = document.createElement("strong");
+    status.textContent = report.label;
+    result.append(status);
+
+    if (report.reason) {
+      const reason = document.createElement("p");
+      reason.textContent = report.reason;
+      result.append(reason);
+    }
+
+    if (report.metadata) {
+      const metadata = report.metadata;
+      const facts = document.createElement("dl");
+      const entries = [
+        ["Protokoll", metadata.protocolVersion],
+        ["Cipher-Suite", metadata.cipherSuite],
+        ["Schlüsselaustausch", metadata.keaGroupName],
+        ["Signatur", metadata.signatureSchemeName],
+        ["HSTS laut Firefox", metadata.hsts === null ? null : metadata.hsts ? "aktiv" : "nicht aktiv"],
+        ["Certificate Transparency", metadata.certificateTransparencyStatus],
+        ["Zertifikat", metadata.certificate?.subject],
+        ["Aussteller", metadata.certificate?.issuer],
+        ["Gültig ab", metadata.certificate?.validity?.start],
+        ["Gültig bis", metadata.certificate?.validity?.end],
+        ["SHA-256-Fingerprint", metadata.certificate?.fingerprintSha256]
+      ];
+      for (const [label, value] of entries) {
+        if (value === null || value === undefined || value === "") continue;
+        const term = document.createElement("dt");
+        term.textContent = label;
+        const description = document.createElement("dd");
+        description.textContent = value;
+        facts.append(term, description);
+      }
+      result.append(facts);
+    }
+
+    if (report.issues.length) {
+      const list = document.createElement("ul");
+      list.className = "tls-issues";
+      for (const issue of report.issues) {
+        const item = document.createElement("li");
+        const title = document.createElement("strong");
+        title.textContent = issue.title;
+        const detail = document.createElement("span");
+        detail.textContent = ` — ${issue.detail}`;
+        const source = document.createElement("small");
+        source.textContent =
+          ` · ${issue.source} · ${issue.confidence} · ${issue.observedAt}`;
+        item.append(title, detail, source);
+        const evidence = document.createElement("details");
+        const evidenceSummary = document.createElement("summary");
+        evidenceSummary.textContent = "Technischer Nachweis";
+        const evidenceValue = document.createElement("pre");
+        evidenceValue.textContent = JSON.stringify(issue.technicalEvidence ?? {}, null, 2);
+        evidence.append(evidenceSummary, evidenceValue);
+        item.append(evidence);
+        list.append(item);
+      }
+      result.append(list);
+    } else if (report.available && report.metadata.state === "secure") {
+      const summary = document.createElement("p");
+      summary.textContent =
+        "Firefox meldet keine TLS-Auffälligkeit in den erfassten Verbindungs- und Zertifikatsdaten. Das ist kein vollständiger TLS-Konfigurationstest.";
+      result.append(summary);
+    }
+
+    const timestamp = document.createElement("small");
+    timestamp.textContent =
+      `Quelle: ${report.source ?? "Firefox webRequest"} · ` +
+      `Erfasst: ${new Date(observedAt).toLocaleString("de-DE")} · ` +
+      "nur Hauptseiten-Verbindung, keine zusätzlichen TLS-Verbindungen";
+    result.append(timestamp);
+    element.append(heading, result);
+  },
+
   renderComponents(element, components) {
     element.replaceChildren();
     const disclosure = document.createElement("details");
@@ -391,7 +473,8 @@ window.CapybaraUI = {
     } else {
       text.textContent =
         `${change.newFindings.length} neue · ${change.resolvedFindings.length} nicht mehr erkannte CVE(s), ` +
-        `${change.versionChanges.length} Versionsänderung(en), ${change.headerChanges.length} Header-Änderung(en).`;
+        `${change.versionChanges.length} Versionsänderung(en), ${change.headerChanges.length} Header-Änderung(en), ` +
+        `${change.tlsChanges?.length ?? 0} TLS-Änderung(en).`;
     }
     disclosure.append(text);
     if (change && !change.baseline) {
@@ -403,6 +486,11 @@ window.CapybaraUI = {
         )],
         ["Geänderte Security-Header", change.headerChanges]
       ];
+      if (change.tlsChanges?.length) {
+        lists.push(["Geänderte TLS-Merkmale", change.tlsChanges.map((item) =>
+          `${item.field}: ${item.from ?? "unbekannt"} → ${item.to ?? "unbekannt"}`
+        )]);
+      }
       for (const [title, values] of lists) {
         if (!values.length) continue;
         const note = document.createElement("p");

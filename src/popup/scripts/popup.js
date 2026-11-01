@@ -2,6 +2,7 @@ const authorizationCheckbox = document.querySelector("#authorized");
 const scanButton = document.querySelector("#scan");
 const statusElement = document.querySelector("#status");
 const serverElement = document.querySelector("#server");
+const tlsElement = document.querySelector("#tls");
 const componentsElement = document.querySelector("#components");
 const postureElement = document.querySelector("#posture");
 const resultsElement = document.querySelector("#results");
@@ -119,6 +120,7 @@ async function scanWebsite() {
   statusElement.textContent = "Antwort-Header werden gelesen …";
   setReport(null);
   serverElement.replaceChildren();
+  tlsElement.replaceChildren();
   componentsElement.replaceChildren();
   postureElement.replaceChildren();
   historyElement.replaceChildren();
@@ -134,24 +136,41 @@ async function scanWebsite() {
       `http://${url.hostname}/*`,
       `https://${url.hostname}/*`
     ];
-    const granted = await browser.permissions.request({ origins: hostOrigins });
-    if (!granted) {
+    const permissionRequest = { origins: hostOrigins };
+    if (url.protocol === "https:") {
+      permissionRequest.permissions = ["webRequestBlocking"];
+    }
+    await browser.permissions.request(permissionRequest);
+    if (!(await browser.permissions.contains({ origins: hostOrigins }))) {
       throw new Error("Firefox benötigt die Website-Berechtigung, um Antwort-Header zu lesen.");
     }
-    if (!(await browser.permissions.contains({ origins: hostOrigins }))) {
-      throw new Error(
-        "Firefox hat den Hostzugriff nicht bestätigt. Erlaube den Zugriff auf diese Website in den Add-on-Berechtigungen und starte den Scan erneut."
-      );
-    }
+    const captureTls = url.protocol === "https:" &&
+      await browser.permissions.contains({ permissions: ["webRequestBlocking"] });
 
     const pageInspection = await CapybaraDetection.inspectActivePage(tab.id);
 
-    statusElement.textContent = "Seite wird einmal neu geladen, um den Server-Header zu lesen …";
+    statusElement.textContent = captureTls
+      ? "Seite wird einmal neu geladen; Response-Header und TLS-Verbindungsdaten werden passiv erfasst …"
+      : "Seite wird einmal neu geladen, um den Server-Header passiv zu lesen …";
     const response = await browser.runtime.sendMessage({
       type: "scan-server-header",
       tabId: tab.id,
-      origin: url.origin
+      origin: url.origin,
+      captureTls
     });
+    const tlsReport = CapybaraTls.assess(response.tls, response.tlsError);
+    tlsReport.observedAt = new Date().toISOString();
+    tlsReport.source = "Firefox webRequest.getSecurityInfo";
+    tlsReport.issues = CapybaraEvidence.attachAll(tlsReport.issues.map((issue) => ({
+      ...issue,
+      technicalEvidence: issue.evidence
+    })), {
+      observedAt: tlsReport.observedAt,
+      source: tlsReport.source,
+      detectionMethod: "Auswertung der ausgehandelten TLS-Verbindung und des Leaf-Zertifikats im Hauptseiten-Request",
+      confidence: "high"
+    });
+    CapybaraUI.renderTls(tlsElement, tlsReport, tlsReport.observedAt);
     const headers = response.headers ?? {};
     const inspection = CapybaraDetection.inspectResponseHeaders(headers);
     const components = pageInspection.components;
@@ -285,7 +304,8 @@ async function scanWebsite() {
             !components.some((component) => component.name === product.name)
           )
         ],
-        headers
+        headers,
+        tls: tlsReport.metadata
       });
       clearHistoryButton.disabled = false;
       await renderHistory(url.origin, history);
@@ -314,6 +334,7 @@ async function scanWebsite() {
           !components.some((component) => component.name === product.name)
         )
       ], { observedAt }),
+      tls: tlsReport,
       posture,
       findings: allFindings,
       history: history ?? null,
@@ -406,7 +427,9 @@ exportJsonButton.addEventListener("click", () => {
   if (currentReport) CapybaraReports.exportJson(currentReport);
 });
 exportCsvButton.addEventListener("click", () => {
-  if (currentReport) CapybaraReports.exportCsv(currentReport.findings ?? []);
+  if (currentReport) {
+    CapybaraReports.exportCsv(currentReport.findings ?? [], currentReport.tls ?? null);
+  }
 });
 printReportButton.addEventListener("click", () => {
   if (currentReport) window.print();
