@@ -16,7 +16,8 @@ window.CapybaraEvidence = {
     if (finding.product) technicalEvidence.product = finding.product;
     if (finding.productVersion) {
       technicalEvidence.version = finding.productVersion;
-      technicalEvidence.versionStatus = context.versionStatus ?? "observed-unverified";
+      technicalEvidence.versionStatus =
+        context.versionStatus ?? technicalEvidence.versionStatus ?? "observed-unverified";
     }
     if (finding.cpe) technicalEvidence.cpe = finding.cpe;
     if (finding.id) technicalEvidence.advisoryId = finding.id;

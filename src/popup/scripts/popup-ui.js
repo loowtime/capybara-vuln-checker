@@ -79,7 +79,7 @@ window.CapybaraUI = {
 
       const detail = document.createElement("p");
       detail.textContent = product.version
-        ? `${product.category} · Version ${product.version} · erkannt in ${product.source}`
+        ? `${product.category} · Versionshinweis ${product.version} (nicht verifiziert) · erkannt in ${product.source}`
         : product.versions?.length > 1
           ? `${product.category} · widersprüchliche Versionsangaben (${product.versions.join(", ")}); kein CVE-Abgleich`
           : `${product.category} · Dienst erkannt, aber keine eindeutige Versionsnummer im Header.`;
@@ -164,7 +164,7 @@ window.CapybaraUI = {
       const detail = document.createElement("p");
       detail.textContent = finding.detail;
       item.append(summary, detail);
-      if (finding.evidence) {
+      if (finding.technicalEvidence) {
         item.append(this.createEvidenceDisclosure(finding));
       }
       disclosure.append(item);
@@ -283,6 +283,18 @@ window.CapybaraUI = {
       priority.className = `risk-label risk-${finding.risk?.level ?? "unbestimmt"}`;
       priority.textContent = `Priorität: ${finding.risk?.level ?? "unbestimmt"}`;
       article.append(priority);
+      if (finding.matchConfidence) {
+        const confidence = document.createElement("small");
+        confidence.className = "match-confidence";
+        confidence.textContent =
+          `Zuordnungsqualität: ${finding.matchConfidence.label} (${finding.matchConfidence.score}/100)`;
+        article.append(confidence);
+      }
+      if (finding.risk?.decision) {
+        const rationale = document.createElement("p");
+        rationale.textContent = finding.risk.decision;
+        article.append(rationale);
+      }
 
       const cpeAssessment = finding.technicalEvidence?.cpeAssessment;
       if (cpeAssessment) {
@@ -339,12 +351,14 @@ window.CapybaraUI = {
       }
       const recommendation = document.createElement("p");
       recommendation.className = "recommendation";
-      recommendation.textContent = finding.recommendation ??
-        (finding.kev?.known
-          ? "Empfehlung: Herstellerhinweise und verfügbare Sicherheitsupdates priorisiert prüfen; Deployment-Version und mögliche Backports verifizieren."
-          : "Empfehlung: Hersteller-Advisory, betroffene/fixe Versionen und Deployment-Patchstand prüfen, bevor eine Maßnahme festgelegt wird.");
+      recommendation.textContent = finding.remediation
+        ? `${finding.remediation.action} ${finding.remediation.verificationRequired ? "Versions-/Installationsnachweis erforderlich." : "Behebung nach Deployment verifizieren."}${finding.remediation.dueDate ? ` Zieltermin: ${new Date(finding.remediation.dueDate).toLocaleDateString("de-DE")}.` : ""}`
+        : finding.recommendation ??
+          (finding.kev?.known
+            ? "Herstellerhinweise und verfügbare Sicherheitsupdates priorisiert prüfen; Deployment-Version und mögliche Backports verifizieren."
+            : "Hersteller-Advisory, betroffene/fixe Versionen und Deployment-Patchstand prüfen, bevor eine Maßnahme festgelegt wird.");
       article.append(recommendation);
-      if (finding.evidence) article.append(this.createEvidenceDisclosure(finding));
+      if (finding.technicalEvidence) article.append(this.createEvidenceDisclosure(finding));
       if (finding.relatedIds?.length) {
         const aliases = document.createElement("small");
         aliases.textContent = `Weitere Advisory-IDs: ${finding.relatedIds.join(", ")}`;

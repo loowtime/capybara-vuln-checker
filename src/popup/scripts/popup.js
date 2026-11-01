@@ -230,9 +230,11 @@ async function scanWebsite() {
         }
       };
     }), { observedAt });
-    const allFindings = CapybaraRisk.prioritizeAll(enrichedFindings, {
+    const confidenceFindings = CapybaraConfidence.assessAll(enrichedFindings);
+    const prioritizedFindings = CapybaraRisk.prioritizeAll(confidenceFindings, {
       exposure: "browser-observed"
     });
+    const allFindings = CapybaraRemediation.enrichAll(prioritizedFindings, observedAt);
     const posture = [
       ...CapybaraPosture.assessResponse(
         headers,
@@ -297,7 +299,12 @@ async function scanWebsite() {
       version: 1,
       scannedAt: observedAt,
       scanner: "Capybara Vuln Check",
-      components: CapybaraEvidence.attachAll(components, { observedAt }),
+      components: CapybaraEvidence.attachAll([
+        ...components,
+        ...inspection.products.filter((product) =>
+          !components.some((component) => component.name === product.name)
+        )
+      ], { observedAt }),
       posture,
       findings: allFindings,
       history: history ?? null,
@@ -359,7 +366,11 @@ analyzeSbomButton.addEventListener("click", async () => {
         versionStatus: "declared-unverified"
       }
     }));
-    const prioritized = CapybaraRisk.prioritizeAll(normalized, { exposure: "sbom" });
+    const confidenceFindings = CapybaraConfidence.assessAll(normalized);
+    const prioritized = CapybaraRemediation.enrichAll(
+      CapybaraRisk.prioritizeAll(confidenceFindings, { exposure: "sbom" }),
+      observedAt
+    );
     CapybaraUI.renderComponents(componentsElement, parsed.components);
     CapybaraUI.renderFindings(resultsElement, prioritized, parsed.components.length, 0, errors);
     setReport({

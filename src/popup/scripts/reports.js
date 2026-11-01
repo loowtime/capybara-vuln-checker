@@ -3,9 +3,15 @@ window.CapybaraReports = {
     const columns = [
       "id", "priority", "cvss", "epss", "kev", "product", "version",
       "source", "confidence", "detectionMethod", "observedAt", "description",
+      "recommendation", "remediationPriority", "remediationSlaDays",
+      "remediationDueDate", "remediationStatus", "verificationRequired",
       "technicalEvidence", "riskReasons"
     ];
-    const quote = (value) => `"${String(value ?? "").replaceAll('"', '""')}"`;
+    const quote = (value) => {
+      let text = String(value ?? "");
+      if (/^[\u0000-\u0020]*[=+\-@]/.test(text)) text = `'${text}`;
+      return `"${text.replaceAll('"', '""')}"`;
+    };
     const rows = findings.map((finding) => [
       finding.id,
       finding.risk?.level,
