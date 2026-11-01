@@ -50,7 +50,9 @@ direkt über `manifest.json` und `src/popup.html`.
    Capybara-Symbol.
 5. Bestätige im Popup, dass du zur Prüfung berechtigt bist, und starte den Scan.
    Beim ersten Scan bittet Firefox zusätzlich um Zugriff auf den Host der
-   geöffneten Seite. Die Seite wird zur Erfassung des Headers einmal neu geladen.
+   geöffneten Seite. Bei HTTPS fragt Firefox außerdem optional nach der
+   Berechtigung zum Lesen der TLS-Verbindungsmetadaten. Die Seite wird zur
+   Erfassung der Hauptseiten-Antwort einmal neu geladen.
 
 Nach Änderungen an `manifest.json` muss das Add-on unter `about:debugging`
 entfernt und mit **Temporäres Add-on laden** erneut geladen werden.
@@ -122,6 +124,21 @@ entfernt und mit **Temporäres Add-on laden** erneut geladen werden.
   Ein Upstream-Versionsvergleich kann dann einen falschen Alarm auslösen;
   Distribution-Advisories bleiben maßgeblich.
 - An die NVD wird nur das CPE gesendet, nicht die Seiten-URL oder der Hostname.
+- Für HTTPS kann Firefox nach Zustimmung TLS-Metadaten des ohnehin geladenen
+  Hauptseiten-Requests bereitstellen: ausgehandelte Protokollversion und
+  Cipher-Suite sowie ausgewählte Eigenschaften des Serverzertifikats. Es wird
+  nur das Leaf-Zertifikat ausgewertet; keine Zertifikatskette angefordert.
+  Firefox’ TLS-Bewertung, veraltete Protokolle, Namensabweichungen, Gültigkeit
+  und Vertrauensstatus werden als Hinweise dargestellt. Die TLS-Metadaten
+  verlassen den Browser nicht; JSON-/CSV-Exporte enthalten sie dagegen.
+  Firefox liefert bei fehlgeschlagenem TLS-Handshake möglicherweise kein
+  `onHeadersReceived`-Ereignis, daher kann der Scan solche Verbindungsfehler
+  nicht zuverlässig klassifizieren.
+- Die zusätzliche API-Berechtigung `webRequestBlocking` ist optional und wird
+  nur für den TLS-Scan angefordert. Der Listener ist während des Scans auf den
+  aktiven Tab und dessen Hauptseiten-Request beschränkt; Antwortdaten werden
+  nicht verändert. Wird die Berechtigung abgelehnt, laufen die übrigen
+  passiven Prüfungen weiter und der TLS-Scan wird als nicht verfügbar markiert.
 - Es werden keine Ports gescannt, keine weiteren Endpunkte abgefragt und keine
   Exploits ausgeführt.
 - NVD kann Anfragen begrenzen oder vorübergehend nicht erreichbar sein.
@@ -159,12 +176,9 @@ entfernt und mit **Temporäres Add-on laden** erneut geladen werden.
 - Berichte können als JSON oder CSV exportiert werden. „Drucken / PDF“ öffnet
   den Druckdialog des Browsers; dort kann „Als PDF speichern“ gewählt werden.
   Es wird kein eigenständiges PDF-Format erzeugt.
-- TLS-Zertifikats- und ausgehandelte Protokollmetadaten werden derzeit nicht
-  erfasst. Firefox’ `webRequest.getSecurityInfo()` erfordert für die Nutzung
-  im `onHeadersReceived`-Listener zusätzliche blockierende WebRequest-
-  Berechtigungen; diese Erweiterung fordert sie aus Gründen minimaler
-  Berechtigungen nicht an. HTTPS und HSTS werden daher nur anhand des
-  Seitenprotokolls und der beobachteten HTTP-Header eingeordnet.
+- Der lokale Scanverlauf vergleicht zusätzlich TLS-Protokoll, Cipher-Suite und
+  den SHA-256-Fingerprint des Serverzertifikats; daraus werden keine externen
+  Abfragen ausgelöst.
 
 ## Entwicklung und Tests
 
