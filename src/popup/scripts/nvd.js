@@ -110,6 +110,7 @@ window.CapybaraNvd = (() => {
   ];
 
   function getCvss(metrics) {
+    if (!metrics || typeof metrics !== "object" || Array.isArray(metrics)) return null;
     const sources = [
       ["CVSS 4.0", metrics.cvssMetricV40],
       ["CVSS 3.1", metrics.cvssMetricV31],
@@ -117,8 +118,9 @@ window.CapybaraNvd = (() => {
       ["CVSS 2.0", metrics.cvssMetricV2]
     ];
     for (const [version, entries] of sources) {
-      if (!entries?.length) continue;
-      const metric = entries.find((entry) => entry.type === "Primary") ?? entries[0];
+      if (!Array.isArray(entries) || !entries.length) continue;
+      const metric = entries.find((entry) => entry?.type === "Primary") ?? entries[0];
+      if (!metric?.cvssData || typeof metric.cvssData !== "object") continue;
       const score = metric.cvssData?.baseScore;
       if (typeof score === "number") {
         return {
@@ -208,8 +210,15 @@ window.CapybaraNvd = (() => {
   }
 
   function versionIsAffected(version, advisory) {
-    if (!version) return false;
-    if (advisory.versionRanges) {
+    if (!version || !advisory || typeof advisory !== "object") return false;
+    if (advisory.versionRanges !== undefined) {
+      if (
+        !Array.isArray(advisory.versionRanges) ||
+        advisory.versionRanges.some((range) =>
+          !Array.isArray(range) || range.length !== 2 ||
+          range.some((bound) => typeof bound !== "string")
+        )
+      ) return null;
       const comparisons = advisory.versionRanges.map(([firstAffected, fixed]) => [
         compareVersions(version, firstAffected),
         compareVersions(version, fixed)
@@ -217,7 +226,12 @@ window.CapybaraNvd = (() => {
       if (comparisons.some(([start, end]) => start === null || end === null)) return null;
       return comparisons.some(([start, end]) => start >= 0 && end < 0);
     }
-    if (advisory.versionRange) {
+    if (advisory.versionRange !== undefined) {
+      if (
+        !Array.isArray(advisory.versionRange) ||
+        advisory.versionRange.length !== 2 ||
+        advisory.versionRange.some((bound) => typeof bound !== "string")
+      ) return null;
       const start = compareVersions(version, advisory.versionRange[0]);
       const end = compareVersions(version, advisory.versionRange[1]);
       return start === null || end === null ? null : start >= 0 && end < 0;
@@ -226,9 +240,11 @@ window.CapybaraNvd = (() => {
   }
 
   function advisoryFindings(components) {
+    if (!Array.isArray(components)) return [];
     const findings = [];
     for (const advisory of advisoryWatchlist) {
       const component = components.find((item) => {
+        if (!item || typeof item !== "object" || Array.isArray(item)) return false;
         if (advisory.slug) {
           return advisory.slug.includes(item.slug) ||
             (advisory.slug.includes("jce") && item.name === "Joomla JCE");
@@ -277,6 +293,9 @@ window.CapybaraNvd = (() => {
   }
 
   async function fetchProductCves(cpe) {
+    if (typeof cpe !== "string" || !cpe.startsWith("cpe:2.3:")) {
+      throw new Error("NVD benötigt einen gültigen CPE-2.3-Namen.");
+    }
     const params = new URLSearchParams({ cpeName: cpe, resultsPerPage: "100" });
     const response = await fetch(
       `https://services.nvd.nist.gov/rest/json/cves/2.0?${params.toString()}`
@@ -288,12 +307,30 @@ window.CapybaraNvd = (() => {
     }
 
     const data = await response.json();
-    const findings = (data.vulnerabilities ?? [])
-      .filter(({ cve }) => !/^rejected$/i.test(cve?.vulnStatus ?? ""))
+    if (!data || !Array.isArray(data.vulnerabilities)) {
+      throw new Error("NVD-Antwort hat ein unerwartetes Format.");
+    }
+    const seenIds = new Set();
+    const findings = data.vulnerabilities
+      .filter((entry) => {
+        const cve = entry?.cve;
+        if (
+          !cve ||
+          typeof cve.id !== "string" ||
+          /^rejected$/i.test(cve.vulnStatus ?? "") ||
+          seenIds.has(cve.id)
+        ) return false;
+        seenIds.add(cve.id);
+        return true;
+      })
       .map(({ cve }) => {
         const cvss = getCvss(cve.metrics ?? {});
-        const description = cve.descriptions?.find((item) => item.lang === "en")?.value ??
-          cve.descriptions?.[0]?.value ?? "Keine Beschreibung verfügbar.";
+        const descriptions = Array.isArray(cve.descriptions) ? cve.descriptions : [];
+        const description = descriptions.find((item) =>
+          item?.lang === "en" && typeof item.value === "string"
+        )?.value ??
+          (typeof descriptions[0]?.value === "string" ? descriptions[0].value : null) ??
+          "Keine Beschreibung verfügbar.";
         return {
           id: cve.id,
           score: cvss?.score ?? null,
@@ -316,7 +353,9 @@ window.CapybaraNvd = (() => {
 
     return {
       findings,
-      totalResults: data.totalResults ?? findings.length,
+      totalResults: Number.isInteger(data.totalResults) && data.totalResults >= 0
+        ? data.totalResults
+        : findings.length,
       highSeverityCount: findings.filter((finding) =>
         finding.score !== null && finding.score > 8
       ).length

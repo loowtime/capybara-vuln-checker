@@ -287,7 +287,9 @@ test("excludes rejected CVEs returned by NVD", async () => {
       ]
     })
   }));
-  const result = await window.CapybaraNvd.fetchProductCves("cpe:test");
+  const result = await window.CapybaraNvd.fetchProductCves(
+    "cpe:2.3:a:vendor:product:*:*:*:*:*:*:*:*"
+  );
 
   assert.deepEqual(result.findings.map((finding) => finding.id), ["CVE-TEST-VALID"]);
   assert.deepEqual(Array.from(result.findings[0].attackHints), [

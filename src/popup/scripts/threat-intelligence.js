@@ -50,6 +50,9 @@ window.CapybaraThreatIntel = (() => {
   }
 
   async function fetchEpss(cveIds, fetcher = fetch) {
+    if (!Array.isArray(cveIds)) {
+      throw new Error("FIRST-EPSS-Abfrage benötigt eine Liste von CVE-IDs.");
+    }
     const ids = [...new Set(cveIds.filter((id) => /^CVE-\d{4}-\d+$/i.test(id ?? "")))];
     const results = new Map();
     for (let offset = 0; offset < ids.length; offset += 100) {
@@ -61,19 +64,22 @@ window.CapybaraThreatIntel = (() => {
       if (!response.ok) throw new Error(`FIRST EPSS antwortet mit HTTP ${response.status}.`);
       const payload = await response.json();
       if (!Array.isArray(payload?.data)) {
-        throw new Error("FIRST-EPSS-Antwort hat ein unerwartetes Format.");
+          throw new Error("FIRST-EPSS-Antwort hat ein unerwartetes Format.");
       }
       for (const record of payload.data) {
-        const score = Number(record.epss);
-        if (
-          /^CVE-\d{4}-\d+$/i.test(record?.cve ?? "") &&
-          Number.isFinite(score) &&
-          score >= 0 &&
-          score <= 1
+          if (!record || typeof record !== "object" || Array.isArray(record)) continue;
+          const score = Number(record.epss);
+          if (
+            /^CVE-\d{4}-\d+$/i.test(record.cve ?? "") &&
+            (typeof record.epss === "string" || typeof record.epss === "number") &&
+            Number.isFinite(score) &&
+            score >= 0 &&
+            score <= 1
         ) {
           results.set(record.cve.toUpperCase(), {
             score,
-            percentile: Number.isFinite(Number(record.percentile))
+            percentile: (typeof record.percentile === "string" || typeof record.percentile === "number") &&
+              Number.isFinite(Number(record.percentile))
               ? Number(record.percentile)
               : null,
             date: record.date ?? null
@@ -85,16 +91,22 @@ window.CapybaraThreatIntel = (() => {
   }
 
   async function enrichFindings(findings, options = {}) {
+    if (!Array.isArray(findings)) {
+      throw new Error("Threat-Intelligence-Abgleich benötigt eine Liste von Befunden.");
+    }
     const fetcher = options.fetch ?? fetch;
     const storage = options.storage ?? globalThis.browser?.storage?.local ?? null;
     const errors = [];
     const ids = [...new Set(findings
       .map((finding) => finding.id)
       .filter((id) => /^CVE-\d{4}-\d+$/i.test(id ?? "")))];
+    if (!ids.length) return { findings, errors };
     let kev = new Map();
     let epss = new Map();
+    let kevAvailable = false;
     try {
       kev = await getKevEntries(fetcher, storage);
+      kevAvailable = true;
     } catch (error) {
       errors.push(error.message);
     }
@@ -110,8 +122,11 @@ window.CapybaraThreatIntel = (() => {
       const epssRecord = id ? epss.get(id) : null;
       return {
         ...finding,
-        kev: kevRecord ? { ...kevRecord, known: true } :
-          kev.size ? { known: false } : finding.kev ?? null,
+        kev: kevRecord
+          ? { ...kevRecord, known: true, source: "CISA KEV" }
+          : kevAvailable
+            ? { known: false, source: "CISA KEV" }
+            : finding.kev ?? null,
         epss: epssRecord ?? finding.epss ?? null,
         relatedSources: [
           ...(finding.relatedSources ?? []),
