@@ -319,8 +319,13 @@ async function scanWebsite() {
 
 sbomFileInput.addEventListener("change", () => {
   const file = sbomFileInput.files?.[0];
-  analyzeSbomButton.disabled = !file;
-  sbomStatus.textContent = file ? `${file.name} ausgewählt · lokal verarbeitet` : "";
+  const validSize = file && file.size <= 5 * 1024 * 1024;
+  analyzeSbomButton.disabled = !validSize;
+  sbomStatus.textContent = !file
+    ? ""
+    : validSize
+      ? `${file.name} ausgewählt · lokal verarbeitet`
+      : "SBOM überschreitet die Grenze von 5 MiB.";
 });
 
 analyzeSbomButton.addEventListener("click", async () => {
@@ -330,18 +335,14 @@ analyzeSbomButton.addEventListener("click", async () => {
   sbomStatus.textContent = "SBOM wird lokal eingelesen …";
   try {
     const parsed = CapybaraSbom.parse(await file.text());
-    const findings = [];
     const errors = [];
-    for (const component of parsed.components.filter((item) => item.osvPackage && item.version)) {
-      try {
-        findings.push(...await CapybaraOsv.lookupPackage({
-          ...component,
-          name: component.name,
-          confidence: component.confidence
-        }));
-      } catch (error) {
-        errors.push(`${component.name}: ${error.message}`);
-      }
+    const queryableComponents = parsed.components.filter((item) => item.osvPackage && item.version);
+    let findings = [];
+    try {
+      const results = await CapybaraOsv.lookupPackages(queryableComponents);
+      findings = results.flat();
+    } catch (error) {
+      errors.push(error.message);
     }
     const intel = await CapybaraThreatIntel.enrichFindings(findings);
     errors.push(...intel.errors);

@@ -44,7 +44,15 @@ window.CapybaraSbom = (() => {
 
   function normalizePackage(name, version, purl, source) {
     const coordinate = parsePurl(purl);
-    const resolvedVersion = version || coordinate?.version || null;
+    const declaredVersion = typeof version === "string" && version.trim()
+      ? version.trim()
+      : null;
+    const versionConflict = Boolean(
+      declaredVersion && coordinate?.version && declaredVersion !== coordinate.version
+    );
+    const resolvedVersion = versionConflict
+      ? null
+      : declaredVersion || coordinate?.version || null;
     return {
       name: coordinate?.name || (typeof name === "string" ? name.trim() : ""),
       version: resolvedVersion,
@@ -53,17 +61,39 @@ window.CapybaraSbom = (() => {
         ? { name: coordinate.name, ecosystem: coordinate.ecosystem }
         : null,
       source,
-      confidence: "medium",
-      versionStatus: "declared-unverified",
-      note: "Angabe aus importiertem SBOM; nicht gegen ein installiertes Deployment verifiziert."
+      confidence: versionConflict ? "low" : "medium",
+      versionStatus: versionConflict ? "ambiguous" : "declared-unverified",
+      note: versionConflict
+        ? "Versionsangaben im SBOM und Package URL widersprechen sich; kein OSV-Abgleich bis zur manuellen Klärung."
+        : "Angabe aus importiertem SBOM; nicht gegen ein installiertes Deployment verifiziert."
     };
+  }
+
+  function collectCycloneComponents(components, output = [], depth = 0) {
+    if (!Array.isArray(components) || depth > 20) return output;
+    for (const component of components) {
+      if (!component || typeof component !== "object" || Array.isArray(component)) continue;
+      if (
+        typeof component.name === "string" &&
+        component.type !== "file" &&
+        component.type !== "operating-system"
+      ) {
+        output.push({
+          name: component.name,
+          version: component.version,
+          purl: component.purl
+        });
+      }
+      collectCycloneComponents(component.components, output, depth + 1);
+    }
+    return output;
   }
 
   function parse(content) {
     if (typeof content !== "string" || !content.trim()) {
       throw new Error("SBOM-Datei ist leer oder kein Text.");
     }
-    if (content.length > MAX_FILE_SIZE) {
+    if (new TextEncoder().encode(content).byteLength > MAX_FILE_SIZE) {
       throw new Error("SBOM-Datei überschreitet die Grenze von 5 MiB.");
     }
     let document;
@@ -77,30 +107,33 @@ window.CapybaraSbom = (() => {
     let rawPackages;
     if (document?.bomFormat === "CycloneDX" && Array.isArray(document.components)) {
       format = `CycloneDX ${document.specVersion ?? "unbekannt"}`;
-      rawPackages = document.components
-        .filter((component) => component?.type !== "file" && component?.type !== "operating-system")
-        .map((component) => ({
-          name: component.name,
-          version: component.version,
-          purl: component.purl
-        }));
+      rawPackages = collectCycloneComponents(document.components);
     } else if (
       typeof document?.spdxVersion === "string" &&
       Array.isArray(document.packages)
     ) {
       format = `SPDX ${document.spdxVersion}`;
-      rawPackages = document.packages.map((pkg) => ({
-        name: pkg.name,
-        version: pkg.versionInfo,
-        purl: pkg.externalRefs?.find((ref) =>
+      rawPackages = document.packages
+        .filter((pkg) => pkg && typeof pkg === "object" && !Array.isArray(pkg))
+        .map((pkg) => ({
+          name: pkg.name,
+          version: pkg.versionInfo,
+          purl: (Array.isArray(pkg.externalRefs) ? pkg.externalRefs : []).find((ref) =>
           ref?.referenceType === "purl" ||
-          (ref?.referenceCategory === "PACKAGE-MANAGER" && ref?.referenceLocator?.startsWith("pkg:"))
+          (
+            ref?.referenceCategory === "PACKAGE-MANAGER" &&
+            typeof ref?.referenceLocator === "string" &&
+            ref.referenceLocator.startsWith("pkg:")
+          )
         )?.referenceLocator
-      }));
+        }));
     } else {
       throw new Error("Unbekanntes SBOM-Format. Unterstützt werden CycloneDX JSON und SPDX JSON.");
     }
 
+    if (rawPackages.length > 20_000) {
+      throw new Error("SBOM enthält mehr als 20.000 Komponenten.");
+    }
     const components = rawPackages
       .filter((pkg) => typeof pkg?.name === "string" && pkg.name.trim())
       .map((pkg) => normalizePackage(pkg.name, pkg.version, pkg.purl, format));
@@ -112,5 +145,5 @@ window.CapybaraSbom = (() => {
     return { format, components: [...unique.values()] };
   }
 
-  return { parse, parsePurl };
+  return { parse, parsePurl, normalizePackage };
 })();
