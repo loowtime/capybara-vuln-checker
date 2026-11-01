@@ -28,7 +28,7 @@
     "https://*/*"
   ],
   "background": {
-    "scripts": ["src/background.js"]
+    "scripts": ["src/popup/scripts/tls-analysis.js", "src/background.js"]
   },
   "browser_specific_settings": {
     "gecko": {
