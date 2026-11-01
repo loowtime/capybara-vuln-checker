@@ -1,11 +1,15 @@
 window.CapybaraReports = {
-  csv(findings) {
+  csv(findings, tlsReport = null) {
     const columns = [
       "id", "priority", "cvss", "epss", "kev", "product", "version",
       "source", "confidence", "detectionMethod", "observedAt", "description",
       "recommendation", "remediationPriority", "remediationSlaDays",
       "remediationDueDate", "remediationStatus", "verificationRequired",
-      "technicalEvidence", "riskReasons"
+      "technicalEvidence", "riskReasons", "recordType", "tlsState",
+      "tlsProtocol", "tlsCipherSuite", "tlsKeyExchange",
+      "tlsCertificateSubject", "tlsCertificateIssuer", "tlsValidFrom",
+      "tlsValidUntil", "tlsFingerprintSha256", "tlsIssues",
+      "tlsObservedAt", "tlsSource"
     ];
     const quote = (value) => {
       let text = String(value ?? "");
@@ -32,8 +36,29 @@ window.CapybaraReports = {
       finding.remediation?.status,
       finding.remediation?.verificationRequired,
       JSON.stringify(finding.technicalEvidence ?? {}),
-      finding.risk?.reasons?.join("; ")
+      finding.risk?.reasons?.join("; "),
+      "CVE",
+      ...Array(12).fill("")
     ]);
+    const tls = tlsReport?.metadata;
+    if (tlsReport) {
+      rows.push([
+        ...Array(20).fill(""),
+        "TLS",
+        tls?.state,
+        tls?.protocolVersion,
+        tls?.cipherSuite,
+        tls?.keaGroupName,
+        tls?.certificate?.subject,
+        tls?.certificate?.issuer,
+        tls?.certificate?.validity?.start,
+        tls?.certificate?.validity?.end,
+        tls?.certificate?.fingerprintSha256,
+        JSON.stringify(tlsReport.issues ?? []),
+        tlsReport.observedAt,
+        tlsReport.source
+      ]);
+    }
     return [columns, ...rows].map((row) => row.map(quote).join(",")).join("\r\n");
   },
 
@@ -51,7 +76,7 @@ window.CapybaraReports = {
     this.download(JSON.stringify(report, null, 2), "capybara-security-report.json", "application/json");
   },
 
-  exportCsv(findings) {
-    this.download(this.csv(findings), "capybara-findings.csv", "text/csv;charset=utf-8");
+  exportCsv(findings, tlsReport = null) {
+    this.download(this.csv(findings, tlsReport), "capybara-findings.csv", "text/csv;charset=utf-8");
   }
 };

@@ -330,3 +330,31 @@ test("CSV report aligns headers, protects spreadsheet formulas and includes evid
   assert.match(csv, /versionStatus/);
   assert.match(csv, /Patch prüfen/);
 });
+
+test("CSV report exports TLS metadata even when there are no CVE findings", () => {
+  const { CapybaraReports } = loadPlatform();
+  const csv = CapybaraReports.csv([], {
+    metadata: {
+      state: "secure",
+      protocolVersion: "TLSv1.3",
+      cipherSuite: "TLS_AES_128_GCM_SHA256",
+      keaGroupName: "X25519",
+      certificate: {
+        subject: "CN=example.test",
+        issuer: "CN=Example CA",
+        validity: { start: "2026-01-01T00:00:00.000Z", end: "2027-01-01T00:00:00.000Z" },
+        fingerprintSha256: "abc123"
+      }
+    },
+    issues: [],
+    observedAt: "2026-11-01T10:00:00.000Z",
+    source: "Firefox webRequest.getSecurityInfo"
+  });
+  const [header, tlsRow] = csv.split("\r\n");
+  assert.match(header, /tlsFingerprintSha256/);
+  assert.match(tlsRow, /"TLS"/);
+  assert.match(tlsRow, /TLSv1\.3/);
+  assert.match(tlsRow, /abc123/);
+  assert.match(tlsRow, /Firefox webRequest\.getSecurityInfo/);
+  assert.equal(header.split(",").length, tlsRow.split(",").length);
+});
