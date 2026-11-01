@@ -18,7 +18,8 @@
     "storage"
   ],
   "optional_permissions": [
-    "webRequestBlocking"
+    "webRequestBlocking",
+    "scripting"
   ],
   "host_permissions": [
     "https://services.nvd.nist.gov/*",

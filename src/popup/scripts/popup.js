@@ -136,11 +136,17 @@ async function scanWebsite() {
       `http://${url.hostname}/*`,
       `https://${url.hostname}/*`
     ];
-    const permissionRequest = { origins: hostOrigins };
+    const permissionRequest = {
+      origins: hostOrigins,
+      permissions: ["scripting"]
+    };
     if (url.protocol === "https:") {
-      permissionRequest.permissions = ["webRequestBlocking"];
+      permissionRequest.permissions.push("webRequestBlocking");
     }
     await browser.permissions.request(permissionRequest);
+    if (!(await browser.permissions.contains({ permissions: ["scripting"] }))) {
+      throw new Error("Firefox benötigt die Berechtigung „Scripting“ für die passive Seitenanalyse.");
+    }
     if (!(await browser.permissions.contains({ origins: hostOrigins }))) {
       throw new Error("Firefox benötigt die Website-Berechtigung, um Antwort-Header zu lesen.");
     }
