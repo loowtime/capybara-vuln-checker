@@ -124,6 +124,46 @@ entfernt und mit **Temporäres Add-on laden** erneut geladen werden.
   Exploits ausgeführt.
 - NVD kann Anfragen begrenzen oder vorübergehend nicht erreichbar sein.
 
+## Evidenz, Threat Intelligence und Verlauf
+
+- CVE-Befunde enthalten Quelle, Erkennungsmethode, Beobachtungszeitpunkt,
+  Erkennungsvertrauen und technische Evidenz. Versionsangaben aus Server-Bannern,
+  Asset-URLs und SBOMs bleiben ausdrücklich unbestätigte Hinweise; auch ein
+  NVD-CPE-Treffer beweist nicht, dass die Website verwundbar ist.
+- CVE-Kandidaten werden mit NVD und OSV abgeglichen. CVE-IDs werden zusätzlich
+  gegen CISA KEV und FIRST EPSS angereichert. Ein fehlender KEV-Eintrag wird
+  nur dann als „nicht gelistet“ ausgewiesen, wenn der Feed erfolgreich geladen
+  wurde; ein Quellenfehler bleibt davon unterscheidbar. Der KEV-Feed wird
+  höchstens 24 Stunden lokal zwischengespeichert.
+- Die Priorität ist eine begründete Triage-Einstufung aus CVSS, EPSS,
+  KEV-Status, Netzwerk-Angriffsvektor und Zuordnungsqualität. Sie ist kein
+  Ausnutzbarkeitsnachweis und kein frei interpretierbarer Gesamtscore.
+- Zur Verringerung offensichtlicher Fehlalarme werden NVD-Einträge mit Status
+  „Rejected“ und zurückgezogene OSV-Advisories herausgefiltert; doppelte
+  CVE-Ergebnisse desselben Produkts werden zusammengeführt. Ein Upstream-
+  Versionsvergleich kann zurückportierte Distributions-Patches nicht
+  zuverlässig erkennen. Die Erweiterung kann Backports deshalb nicht
+  bestätigen; Distributions-Advisories und tatsächlicher Patchstand müssen
+  separat geprüft werden.
+- Importiert werden CycloneDX-JSON- und SPDX-JSON-Dateien bis 5 MiB und
+  höchstens 20.000 Komponenten. SBOM-Versionen werden als deklarierte,
+  deployment-unbestätigte Angaben behandelt. Für unterstützte Paketkoordinaten
+  sendet die Erweiterung Name, Ökosystem und Version an OSV; die SBOM-Datei
+  selbst, Hostname und Website-Adresse werden nicht hochgeladen.
+- Der lokale Verlauf speichert pro Website-Ursprung bis zu 30 Snapshots in
+  Firefox `storage.local`, einschließlich erkannter Komponenten, CVE-IDs und
+  ausgewählter Security-Header. Er wird nicht synchronisiert und kann im Popup
+  gelöscht werden.
+- Berichte können als JSON oder CSV exportiert werden. „Drucken / PDF“ öffnet
+  den Druckdialog des Browsers; dort kann „Als PDF speichern“ gewählt werden.
+  Es wird kein eigenständiges PDF-Format erzeugt.
+- TLS-Zertifikats- und ausgehandelte Protokollmetadaten werden derzeit nicht
+  erfasst. Firefox’ `webRequest.getSecurityInfo()` erfordert für die Nutzung
+  im `onHeadersReceived`-Listener zusätzliche blockierende WebRequest-
+  Berechtigungen; diese Erweiterung fordert sie aus Gründen minimaler
+  Berechtigungen nicht an. HTTPS und HSTS werden daher nur anhand des
+  Seitenprotokolls und der beobachteten HTTP-Header eingeordnet.
+
 ## Entwicklung und Tests
 
 Die Tests laufen offline mit Node.js und greifen nicht auf Websites oder die
