@@ -12,6 +12,7 @@ const analyzeSbomButton = document.querySelector("#analyze-sbom");
 const exportJsonButton = document.querySelector("#export-json");
 const exportCsvButton = document.querySelector("#export-csv");
 const printReportButton = document.querySelector("#print-report");
+const clearHistoryButton = document.querySelector("#clear-history");
 let activePage = null;
 let currentReport = null;
 
@@ -96,8 +97,10 @@ async function renderHistory(origin, change = null) {
     const snapshots = await CapybaraHistory.read(origin);
     if (!snapshots.length) {
       CapybaraUI.renderHistory(historyElement, null);
+      clearHistoryButton.disabled = true;
       return;
     }
+    clearHistoryButton.disabled = false;
     change = { baseline: true, scannedAt: snapshots.at(-1).scannedAt };
   }
   CapybaraUI.renderHistory(historyElement, change);
@@ -276,9 +279,15 @@ async function scanWebsite() {
       history = await CapybaraHistory.record(url.origin, {
         scannedAt: observedAt,
         findings: allFindings,
-        components,
+        components: [
+          ...components,
+          ...inspection.products.filter((product) =>
+            !components.some((component) => component.name === product.name)
+          )
+        ],
         headers
       });
+      clearHistoryButton.disabled = false;
       await renderHistory(url.origin, history);
     } catch (error) {
       sourceErrors.push(`Lokale Historie: ${error.message}`);
@@ -401,6 +410,16 @@ exportCsvButton.addEventListener("click", () => {
 });
 printReportButton.addEventListener("click", () => {
   if (currentReport) window.print();
+});
+clearHistoryButton.addEventListener("click", async () => {
+  if (!activePage) return;
+  try {
+    await CapybaraHistory.clear(activePage.url.origin);
+    clearHistoryButton.disabled = true;
+    await renderHistory(activePage.url.origin);
+  } catch (error) {
+    statusElement.textContent = `Verlauf konnte nicht gelöscht werden: ${error.message}`;
+  }
 });
 
 scanButton.addEventListener("click", scanWebsite);
