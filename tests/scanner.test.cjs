@@ -413,3 +413,86 @@ test("flags incomplete CSP directives and invalid cookie prefixes", () => {
   assert(findings.some((finding) => finding.title === "Ungültige __Host-Cookie-Attribute"));
   assert(findings.some((finding) => finding.title === "Ungültige __Secure-Cookie-Attribute"));
 });
+
+test("audits CSP script exceptions, broad sources, and duplicate directives", () => {
+  const { window } = loadModules();
+  const findings = window.CapybaraPosture.assessResponse({
+    "content-security-policy": [
+      "default-src 'self'; script-src 'self' 'unsafe-inline' 'nonce-r4nd0m' https:; script-src 'none'"
+    ]
+  }, { count: 0 }, true);
+
+  const scriptExceptions = findings.find((finding) =>
+    finding.title === "CSP erlaubt unsichere Skript-Ausnahmen"
+  );
+  assert.equal(scriptExceptions, undefined);
+  assert(findings.some((finding) =>
+    finding.title === "CSP-Skriptquellen sind weit gefasst"
+  ));
+  const duplicate = findings.find((finding) =>
+    finding.title === "CSP enthält doppelte Direktiven"
+  );
+  assert.deepEqual(JSON.parse(JSON.stringify(duplicate.technicalEvidence)), {
+    duplicateDirectives: ["script-src"]
+  });
+
+  const unsafe = window.CapybaraPosture.assessResponse({
+    "content-security-policy": ["default-src 'self'; script-src 'unsafe-eval'"]
+  }, { count: 0 }, true);
+  assert(unsafe.some((finding) =>
+    finding.title === "CSP erlaubt unsichere Skript-Ausnahmen"
+  ));
+});
+
+test("validates HSTS semantics and preload prerequisites", () => {
+  const { window } = loadModules();
+  const findings = window.CapybaraPosture.assessResponse({
+    "strict-transport-security": [
+      "max-age=60; preload; max-age=31536000"
+    ]
+  }, { count: 0 }, true);
+
+  assert(findings.some((finding) =>
+    finding.title === "HSTS enthält doppelte Direktiven"
+  ));
+  assert(findings.some((finding) =>
+    finding.title === "HSTS max-age ist kürzer als sechs Monate"
+  ));
+  assert(findings.some((finding) =>
+    finding.title === "HSTS-Preload-Deklaration erfüllt nicht die üblichen Voraussetzungen"
+  ));
+
+  const invalid = window.CapybaraPosture.assessResponse({
+    "strict-transport-security": ["max-age=abc"]
+  }, { count: 0 }, true);
+  assert(invalid.some((finding) =>
+    finding.title === "HSTS max-age fehlt oder ist ungültig"
+  ));
+});
+
+test("checks effective Referrer-Policy and unrestricted sensitive Permissions-Policy", () => {
+  const { window } = loadModules();
+  const findings = window.CapybaraPosture.assessResponse({
+    "referrer-policy": ["unsafe-url, strict-origin-when-cross-origin"],
+    "permissions-policy": ["camera=*, geolocation=(self), microphone=(*)"]
+  }, { count: 0 }, true);
+
+  assert.equal(findings.some((finding) =>
+    finding.title === "Referrer-Policy gibt umfangreiche URL-Informationen frei"
+  ), false);
+  const permissions = findings.find((finding) =>
+    finding.title === "Permissions-Policy gibt sensible Funktionen global frei"
+  );
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(permissions.technicalEvidence.unrestrictedFeatures)),
+    ["camera", "microphone"]
+  );
+
+  const weakReferrer = window.CapybaraPosture.assessResponse({
+    "referrer-policy": ["strict-origin-when-cross-origin, unsafe-url"],
+    "permissions-policy": ["camera=()"]
+  }, { count: 0 }, true);
+  assert(weakReferrer.some((finding) =>
+    finding.title === "Referrer-Policy gibt umfangreiche URL-Informationen frei"
+  ));
+});
