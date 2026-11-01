@@ -21,9 +21,11 @@ noch Root-Zugriff auf die erkannte Website.
 
 ## Projektstruktur
 
-![Beispielansicht des Capybara-Popups](docs/capybara-popup.png)
+<p align="center">
+  <img src="docs/capybara-popup.png" alt="Kompakte Beispielansicht des Capybara Vuln Check Popups" width="460">
+</p>
 
-Die CVE- und Versionsangaben im Screenshot sind Beispieldaten.
+Die CVE- und Versionsangaben in der Beispielansicht sind Beispieldaten.
 
 ```text
 manifest.json             Firefox-Einstiegspunkt
