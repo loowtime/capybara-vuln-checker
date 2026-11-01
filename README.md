@@ -50,9 +50,10 @@ direkt über `manifest.json` und `src/popup.html`.
    Capybara-Symbol.
 5. Bestätige im Popup, dass du zur Prüfung berechtigt bist, und starte den Scan.
    Beim ersten Scan bittet Firefox zusätzlich um Zugriff auf den Host der
-   geöffneten Seite. Bei HTTPS fragt Firefox außerdem optional nach der
-   Berechtigung zum Lesen der TLS-Verbindungsmetadaten. Die Seite wird zur
-   Erfassung der Hauptseiten-Antwort einmal neu geladen.
+   geöffneten Seite und die optionale Berechtigung „Scripting“ für die passive
+   Analyse bereits geladener Seiteninhalte. Bei HTTPS fragt Firefox außerdem
+   optional nach der Berechtigung zum Lesen der TLS-Verbindungsmetadaten. Die
+   Seite wird zur Erfassung der Hauptseiten-Antwort einmal neu geladen.
 
 Nach Änderungen an `manifest.json` muss das Add-on unter `about:debugging`
 entfernt und mit **Temporäres Add-on laden** erneut geladen werden.
@@ -139,6 +140,10 @@ entfernt und mit **Temporäres Add-on laden** erneut geladen werden.
   aktiven Tab und dessen Hauptseiten-Request beschränkt; Antwortdaten werden
   nicht verändert. Wird die Berechtigung abgelehnt, laufen die übrigen
   passiven Prüfungen weiter und der TLS-Scan wird als nicht verfügbar markiert.
+- Die optionale Berechtigung `scripting` wird für die passive Analyse bereits
+  geladener Seiteninhalte erst beim Start eines Scans angefordert. Sie wird
+  über `browser.scripting.executeScript` gezielt auf den aktiven Tab angewandt;
+  es werden keine zusätzlichen Requests ausgelöst.
 - Es werden keine Ports gescannt, keine weiteren Endpunkte abgefragt und keine
   Exploits ausgeführt.
 - NVD kann Anfragen begrenzen oder vorübergehend nicht erreichbar sein.
