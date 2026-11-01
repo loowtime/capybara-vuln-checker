@@ -3,7 +3,7 @@
   "name": "Capybara Vuln Check",
   "version": "0.2.0",
   "description": "Passive Hinweise auf Serverdienste und passende CVEs.",
-  "browser_action": {
+  "action": {
     "default_title": "Capybara Vuln Check",
     "default_popup": "src/popup.html",
     "default_icon": "assets/icons/capybara.svg"
@@ -15,19 +15,20 @@
   "permissions": [
     "activeTab",
     "webRequest",
+    "storage"
+  ],
+  "host_permissions": [
     "https://services.nvd.nist.gov/*",
     "https://api.osv.dev/*",
     "https://www.cisa.gov/*",
-    "https://api.first.org/*",
-    "storage"
+    "https://api.first.org/*"
   ],
-  "optional_permissions": [
+  "optional_host_permissions": [
     "http://*/*",
     "https://*/*"
   ],
   "background": {
-    "scripts": ["src/background.js"],
-    "service_worker": "src/background.js"
+    "scripts": ["src/background.js"]
   },
   "browser_specific_settings": {
     "gecko": {
