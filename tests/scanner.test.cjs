@@ -44,6 +44,17 @@ test("detects server and runtime versions in response headers", () => {
   assert(result.infrastructure.includes("Proxy-Gateway (Via-Header)"));
 });
 
+test("reports unavailable MV3 scripting API instead of calling legacy tabs.executeScript", async () => {
+  const context = loadModules();
+  context.browser = {
+    tabs: { executeScript: async () => assert.fail("Legacy API must not be used") }
+  };
+  await assert.rejects(
+    context.window.CapybaraDetection.inspectActivePage(1),
+    /Seitenanalyse-API nicht/
+  );
+});
+
 test("detects JavaScript library versions from already-loaded asset URLs", async () => {
   const context = loadModules();
   const resources = [
@@ -66,8 +77,8 @@ test("detects JavaScript library versions from already-loaded asset URLs", async
     forms: []
   };
   context.browser = {
-    tabs: {
-      executeScript: async (_tabId, options) => [vm.runInNewContext(options.code, {
+    scripting: {
+      executeScript: async ({ func }) => [{ result: vm.runInNewContext(`(${func.toString()})()`, {
         document,
         URL,
         location: {
@@ -75,7 +86,7 @@ test("detects JavaScript library versions from already-loaded asset URLs", async
           origin: "https://site.example.test",
           protocol: "https:"
         }
-      })]
+      }) }]
     }
   };
 
@@ -120,8 +131,8 @@ test("passively flags file and path inputs without sending requests", async () =
     forms: [form]
   };
   context.browser = {
-    tabs: {
-      executeScript: async (_tabId, options) => [vm.runInNewContext(options.code, {
+    scripting: {
+      executeScript: async ({ func }) => [{ result: vm.runInNewContext(`(${func.toString()})()`, {
         document,
         URL: LegacyURL,
         location: {
@@ -129,7 +140,7 @@ test("passively flags file and path inputs without sending requests", async () =
           origin: "https://site.example.test",
           protocol: "https:"
         }
-      })]
+      }) }]
     }
   };
 
@@ -191,8 +202,8 @@ test("audits third-party assets, frames, and form destinations without requests"
     forms
   };
   context.browser = {
-    tabs: {
-      executeScript: async (_tabId, options) => [vm.runInNewContext(options.code, {
+    scripting: {
+      executeScript: async ({ func }) => [{ result: vm.runInNewContext(`(${func.toString()})()`, {
         document,
         URL,
         location: {
@@ -200,7 +211,7 @@ test("audits third-party assets, frames, and form destinations without requests"
           origin: "https://site.example.test",
           protocol: "https:"
         }
-      })]
+      }) }]
     }
   };
 

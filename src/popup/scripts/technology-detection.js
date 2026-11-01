@@ -534,10 +534,17 @@ window.CapybaraDetection = (() => {
   }
 
   async function inspectActivePage(tabId) {
-    const [result] = await browser.tabs.executeScript(tabId, {
-      code: `(${inspectPage.toString()})()`
+    if (!browser.scripting?.executeScript) {
+      throw new Error("Firefox unterstützt die erforderliche Seitenanalyse-API nicht.");
+    }
+    const [injection] = await browser.scripting.executeScript({
+      target: { tabId },
+      func: inspectPage
     });
-    return result ?? { components: [], security: [] };
+    if (!injection?.result) {
+      throw new Error("Firefox hat kein Ergebnis für die passive Seitenanalyse zurückgegeben.");
+    }
+    return injection.result;
   }
 
   return { inspectResponseHeaders, inspectActivePage };
