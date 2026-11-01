@@ -1,4 +1,4 @@
-function captureServerHeader(tabId, origin) {
+function captureServerHeader(tabId, origin, captureTls = false) {
   return new Promise((resolve, reject) => {
     let timer;
     let listening = false;
@@ -107,13 +107,36 @@ function captureServerHeader(tabId, origin) {
         if (values && header.value) values.push(header.value);
       }
 
-      finish(null, {
+      const result = {
         headers: Object.fromEntries(
           [...observedHeaders].filter(([, values]) => values.length)
         ),
         cookieFlags,
         statusCode: details.statusCode
-      });
+      };
+      const finishWithTls = (tls, tlsError = null) =>
+        finish(null, { ...result, tls, tlsError });
+
+      if (!isSecureResponse) {
+        finishWithTls({ state: "insecure" });
+      } else if (!captureTls) {
+        finishWithTls(null, "TLS-Metadaten wurden nicht angefordert oder die Berechtigung fehlt.");
+      } else {
+        try {
+          Promise.resolve(browser.webRequest.getSecurityInfo(details.requestId))
+            .then((securityInfo) => {
+              const tls = globalThis.CapybaraTls.sanitizeSecurityInfo(securityInfo);
+              finishWithTls(
+                tls,
+                tls ? null : "Firefox hat keine TLS-Metadaten für die Verbindung geliefert."
+              );
+            })
+            .catch((error) => finishWithTls(null, error.message));
+        } catch (error) {
+          finishWithTls(null, error.message);
+        }
+      }
+      return captureTls ? {} : undefined;
     };
 
     const onTabUpdated = (updatedTabId, changeInfo) => {
@@ -143,7 +166,7 @@ function captureServerHeader(tabId, origin) {
           tabId,
           types: ["main_frame"]
         },
-        ["responseHeaders"]
+        captureTls ? ["responseHeaders", "blocking"] : ["responseHeaders"]
       );
       listening = true;
       browser.webRequest.onErrorOccurred.addListener(onRequestError, {
@@ -177,5 +200,7 @@ browser.runtime.onMessage.addListener(async (message, sender) => {
     throw new Error("Die aktive Website hat sich geändert. Bitte starte die Prüfung erneut.");
   }
 
-  return captureServerHeader(tab.id, currentUrl.origin);
+  const captureTls = message.captureTls === true &&
+    await browser.permissions.contains({ permissions: ["webRequestBlocking"] });
+  return captureServerHeader(tab.id, currentUrl.origin, captureTls);
 });

@@ -17,6 +17,9 @@
     "webRequest",
     "storage"
   ],
+  "optional_permissions": [
+    "webRequestBlocking"
+  ],
   "host_permissions": [
     "https://services.nvd.nist.gov/*",
     "https://api.osv.dev/*",
