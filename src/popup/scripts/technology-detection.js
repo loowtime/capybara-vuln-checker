@@ -476,6 +476,65 @@ window.CapybaraDetection = (() => {
       });
     }
 
+    const sensitiveFieldTypes = new Set(["password", "email", "tel"]);
+    const sensitiveAutocomplete = new Set([
+      "cc-name", "cc-number", "cc-exp", "cc-exp-month", "cc-exp-year",
+      "cc-csc", "current-password", "new-password", "one-time-code",
+      "transaction-amount", "transaction-currency"
+    ]);
+    const sensitiveNameParts = new Set([
+      "account", "accountnumber", "bank", "card", "cc", "cvc", "cvv",
+      "email", "iban", "password", "phone", "secret", "securitycode",
+      "ssn", "taxid", "token"
+    ]);
+    let sensitiveGetForms = 0;
+    let sensitiveHttpForms = 0;
+    let sensitiveFormCount = 0;
+    for (const form of Array.from(document.forms).slice(0, 200)) {
+      const fields = Array.from(form.querySelectorAll("input, textarea, select"));
+      const hasSensitiveField = fields.some((field) => {
+        const type = (field.type ?? "").toLowerCase();
+        const autocomplete = (field.autocomplete ?? "").toLowerCase().split(/\s+/);
+        const nameParts = (field.name ?? "")
+          .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+          .toLowerCase()
+          .split(/[^a-z0-9]+/)
+          .filter(Boolean);
+        return sensitiveFieldTypes.has(type) ||
+          autocomplete.some((value) => sensitiveAutocomplete.has(value)) ||
+          nameParts.some((part) => sensitiveNameParts.has(part));
+      });
+      if (!hasSensitiveField) continue;
+
+      sensitiveFormCount += 1;
+      if ((form.method || "get").toLowerCase() === "get") sensitiveGetForms += 1;
+      try {
+        if (new URL(form.action || location.href, location.href).protocol === "http:") {
+          sensitiveHttpForms += 1;
+        }
+      } catch {
+        continue;
+      }
+    }
+
+    if (sensitiveGetForms || sensitiveHttpForms) {
+      const risks = [];
+      if (sensitiveGetForms) risks.push(`${sensitiveGetForms} verwendet GET`);
+      if (sensitiveHttpForms) risks.push(`${sensitiveHttpForms} sendet an HTTP`);
+      security.push({
+        level: "warning",
+        title: "Sensible Formulardaten mit unsicherem Übertragungsweg",
+        detail: `${sensitiveFormCount} Formular(e) enthalten anhand von Feldtyp, autocomplete oder Feldnamen sensible Eingaben; ${risks.join(" und ")}. Prüfe Methode und Ziel auf HTTPS. Es wurden weder Feldwerte gelesen noch Anfragen gesendet.`,
+        technicalEvidence: {
+          sensitiveFormCount,
+          sensitiveGetForms,
+          sensitiveHttpForms,
+          inspectedFieldProperties: ["type", "autocomplete", "name"],
+          fieldValuesRead: false
+        }
+      });
+    }
+
     const pathInputNames = new Set([
       "file", "filepath", "filename", "path", "directory", "dir", "folder",
       "template", "include", "download", "document", "resource", "asset"

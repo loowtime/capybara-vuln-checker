@@ -75,8 +75,12 @@ entfernt und mit **Temporäres Add-on laden** erneut geladen werden.
   oder Hostname. OSV-Advisories werden als Kandidaten mit Quelle und Alias-IDs
   angezeigt; ein fehlender CVSS-Score wird nicht als niedriger Score gewertet.
 - Die passive Checkliste markiert Formularfelder und bereits vorhandene URL-
-  Parameter mit Datei-/Pfadbezug zur manuellen Prüfung auf Path Traversal. Sie
-  sendet keine Testwerte und kann keine serverseitigen Schwachstellen bestätigen.
+  Parameter mit Datei-/Pfadbezug zur manuellen Prüfung auf Path Traversal.
+  Sensible Feldtypen und Feldnamen werden außerdem darauf geprüft, ob das
+  Formular GET oder ein HTTP-Ziel nutzt. Es werden nur Feldtyp, autocomplete,
+  Name, Methode und Zielprotokoll ausgewertet; Eingabewerte werden nicht gelesen
+  und keine Testwerte gesendet. Diese Heuristik kann legitime Felder als
+  sensibel einstufen und bestätigt keine serverseitige Schwachstelle.
 - Cookie-Werte werden nicht gespeichert oder angezeigt; ausgewertet werden
   nur Anzahl und Secure-/HttpOnly-/SameSite-Attribute sowie die formalen
   Anforderungen an `__Host-`/`__Secure-`-Präfixe der Cookies im

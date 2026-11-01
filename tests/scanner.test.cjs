@@ -233,6 +233,63 @@ test("audits third-party assets, frames, and form destinations without requests"
   ));
 });
 
+test("detects sensitive form fields submitted with GET or to HTTP without reading values", async () => {
+  const context = loadModules();
+  const fields = [
+    { type: "email", name: "contact", autocomplete: "", get value() {
+      throw new Error("Form values must never be accessed");
+    } },
+    { type: "text", name: "billing_card_number", autocomplete: "" }
+  ];
+  const forms = [
+    {
+      action: "https://site.example.test/search",
+      method: "get",
+      querySelector: () => null,
+      querySelectorAll: (selector) => selector === "input, textarea, select" ? [fields[0]] : []
+    },
+    {
+      action: "http://payments.example.test/checkout",
+      method: "post",
+      querySelector: () => null,
+      querySelectorAll: (selector) => selector === "input, textarea, select" ? [fields[1]] : []
+    }
+  ];
+  const document = {
+    querySelector: () => null,
+    querySelectorAll: () => [],
+    forms
+  };
+  context.browser = {
+    scripting: {
+      executeScript: async ({ func }) => [{ result: vm.runInNewContext(`(${func.toString()})()`, {
+        document,
+        URL,
+        location: {
+          href: "https://site.example.test/",
+          origin: "https://site.example.test",
+          protocol: "https:"
+        }
+      }) }]
+    }
+  };
+
+  const result = await context.window.CapybaraDetection.inspectActivePage(1);
+  const finding = result.security.find((item) =>
+    item.title === "Sensible Formulardaten mit unsicherem Übertragungsweg"
+  );
+  assert(finding);
+  assert.match(finding.detail, /1 verwendet GET und 1 sendet an HTTP/);
+  assert.match(finding.detail, /weder Feldwerte gelesen noch Anfragen gesendet/);
+  assert.deepEqual(JSON.parse(JSON.stringify(finding.technicalEvidence)), {
+    sensitiveFormCount: 2,
+    sensitiveGetForms: 1,
+    sensitiveHttpForms: 1,
+    inspectedFieldProperties: ["type", "autocomplete", "name"],
+    fieldValuesRead: false
+  });
+});
+
 test("only reports watchlist products inside known affected ranges", () => {
   const { window } = loadModules();
   const nvd = window.CapybaraNvd;
