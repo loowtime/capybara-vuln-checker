@@ -86,6 +86,11 @@ entfernt und mit **Temporäres Add-on laden** erneut geladen werden.
   `object-src` und `base-uri`. Sie sind keine automatische Konfigurations-
   empfehlung; Richtlinien müssen vor Durchsetzung an die Website angepasst und
   getestet werden.
+- Der Header-Posture-Scan prüft zusätzlich HSTS-Direktiven und Preload-
+  Voraussetzungen, die wirksame Referrer-Policy sowie Wildcard-Freigaben
+  sensibler Funktionen in Permissions-Policy. Das sind Konfigurationshinweise,
+  keine automatische Bewertung der Anwendungsanforderungen; Subdomain- und
+  Browser-Kompatibilität muss vor Änderungen geprüft werden.
 - WordPress-Plugin-Namen stammen aus öffentlichen Asset-Pfaden. Ein `ver`-
   Parameter ist nur ein schwacher Versionshinweis und kann eine Asset-Version
   statt der installierten Plugin-Version bezeichnen. Treffer aus diesem Wert
