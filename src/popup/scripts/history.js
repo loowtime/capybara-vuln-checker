@@ -17,7 +17,16 @@ window.CapybaraHistory = (() => {
   }
 
   function diff(previous, current) {
-    if (!previous) return { baseline: true, newFindings: [], resolvedFindings: [], versionChanges: [], headerChanges: [] };
+    if (!previous) {
+      return {
+        baseline: true,
+        newFindings: [],
+        resolvedFindings: [],
+        versionChanges: [],
+        headerChanges: [],
+        tlsChanges: []
+      };
+    }
     const priorFindings = findingMap(previous.findings);
     const currentFindings = findingMap(current.findings);
     const previousComponents = Array.isArray(previous.components) ? previous.components : [];
@@ -44,12 +53,32 @@ window.CapybaraHistory = (() => {
     const headerChanges = [...headerNames].filter((name) =>
       JSON.stringify(priorHeaders[name] ?? null) !== JSON.stringify(currentHeaders[name] ?? null)
     );
+    const tlsFields = [
+      ["Status", "state"],
+      ["Protokoll", "protocolVersion"],
+      ["Cipher-Suite", "cipherSuite"]
+    ];
+    const previousCertificate = previous.tls?.certificate ?? {};
+    const currentCertificate = current.tls?.certificate ?? {};
+    const tlsChanges = tlsFields.flatMap(([field, key]) =>
+      previous.tls?.[key] !== current.tls?.[key]
+        ? [{ field, from: previous.tls?.[key] ?? null, to: current.tls?.[key] ?? null }]
+        : []
+    );
+    if (previousCertificate.fingerprintSha256 !== currentCertificate.fingerprintSha256) {
+      tlsChanges.push({
+        field: "Zertifikat-Fingerprint",
+        from: previousCertificate.fingerprintSha256 ?? null,
+        to: currentCertificate.fingerprintSha256 ?? null
+      });
+    }
     return {
       baseline: false,
       newFindings: [...currentFindings.keys()].filter((item) => !priorFindings.has(item)),
       resolvedFindings: [...priorFindings.keys()].filter((item) => !currentFindings.has(item)),
       versionChanges,
-      headerChanges
+      headerChanges,
+      tlsChanges
     };
   }
 
@@ -96,7 +125,19 @@ window.CapybaraHistory = (() => {
       components,
       headers: data.headers && typeof data.headers === "object" && !Array.isArray(data.headers)
         ? data.headers
-        : {}
+        : {},
+      tls: data.tls && typeof data.tls === "object" && !Array.isArray(data.tls)
+        ? {
+          state: typeof data.tls.state === "string" ? data.tls.state : null,
+          protocolVersion: typeof data.tls.protocolVersion === "string" ? data.tls.protocolVersion : null,
+          cipherSuite: typeof data.tls.cipherSuite === "string" ? data.tls.cipherSuite : null,
+          certificate: {
+            fingerprintSha256: typeof data.tls.certificate?.fingerprintSha256 === "string"
+              ? data.tls.certificate.fingerprintSha256
+              : null
+          }
+        }
+        : null
     };
     const change = diff(snapshots.at(-1), current);
     snapshots.push(current);
