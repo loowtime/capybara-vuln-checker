@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Capybara Vuln Check",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Passive Hinweise auf Serverdienste und passende CVEs.",
   "action": {
     "default_title": "Capybara Vuln Check",

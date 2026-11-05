@@ -33,7 +33,7 @@ assets/icons/             Erweiterungssymbole
 src/
   background.js             Header-Erfassung beim Seitenreload
   popup.html                Popup-Einstiegspunkt
-  popup/scripts/            Erkennung, NVD, Posture, UI und Orchestrierung
+  popup/scripts/            Erkennung, NVD/OSV, Abdeckung, Filter, UI und Orchestrierung
   styles/                   Popup-Styles
 tests/                      Offline-Tests ohne Netzwerkzugriff
 ```
@@ -193,6 +193,25 @@ entfernt und mit **Temporäres Add-on laden** erneut geladen werden.
 - Der lokale Scanverlauf vergleicht zusätzlich TLS-Protokoll, Cipher-Suite und
   den SHA-256-Fingerprint des Serverzertifikats; daraus werden keine externen
   Abfragen ausgelöst.
+
+## Filter, Prüfabdeckung und Drittanbieter-Inventar
+
+- Die CVE-Liste lässt sich lokal nach Freitext (CVE-ID, Produkt, Version,
+  Beschreibung, Alias-IDs), Priorität und CISA-KEV-Status filtern. Der Filter
+  wirkt nur auf die Anzeige; gespeicherte Snapshots und der JSON-/CSV-Export
+  bleiben vollständig. Vor dem Drucken wird ein aktiver Filter zurückgesetzt,
+  damit der Bericht alle Befunde enthält.
+- Die Prüfabdeckung dokumentiert je Lauf, ob HTTP-Header, passive
+  Seitenanalyse, TLS, NVD, OSV, CISA KEV/FIRST EPSS, der kuratierte
+  Advisory-Katalog und die lokale Historie vollständig, teilweise oder nicht
+  ausgewertet wurden. Ein fehlender oder fehlgeschlagener Quellenzugriff wird
+  als unvollständig ausgewiesen; die Anzeige ist kein Sicherheits- oder
+  Vollständigkeitsnachweis.
+- Drittanbieter-Ressourcen werden aus bereits geladenen Skripten, Stylesheets
+  und Frames je Ursprung aggregiert. Angezeigt werden Anzahl, fehlendes SRI
+  und fehlende sandbox-Attribute; vollständige Pfade werden nicht dargestellt
+  und es werden keine zusätzlichen Anfragen ausgelöst. Der lokale JSON-Bericht
+  enthält die aggregierten Ursprünge, der CSV-Bericht nicht.
 
 ## Entwicklung und Tests
 
