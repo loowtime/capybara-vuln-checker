@@ -100,10 +100,13 @@ window.CapybaraThreatIntel = (() => {
     const ids = [...new Set(findings
       .map((finding) => finding.id)
       .filter((id) => /^CVE-\d{4}-\d+$/i.test(id ?? "")))];
-    if (!ids.length) return { findings, errors };
+    if (!ids.length) {
+      return { findings, errors, availability: { kev: null, epss: null } };
+    }
     let kev = new Map();
     let epss = new Map();
     let kevAvailable = false;
+    let epssAvailable = false;
     try {
       kev = await getKevEntries(fetcher, storage);
       kevAvailable = true;
@@ -112,6 +115,7 @@ window.CapybaraThreatIntel = (() => {
     }
     try {
       epss = await fetchEpss(ids, fetcher);
+      epssAvailable = true;
     } catch (error) {
       errors.push(error.message);
     }
@@ -135,7 +139,11 @@ window.CapybaraThreatIntel = (() => {
         ]
       };
     });
-    return { findings: enriched, errors };
+    return {
+      findings: enriched,
+      errors,
+      availability: { kev: kevAvailable, epss: epssAvailable }
+    };
   }
 
   return { parseKevFeed, fetchEpss, enrichFindings };

@@ -280,12 +280,14 @@ async function scanWebsite() {
     const osvComponents = components.filter((component) =>
       component.osvPackage && /^\d+\.\d+\.\d+$/.test(component.version ?? "")
     );
+    let osvFailed = 0;
     for (const [index, component] of osvComponents.entries()) {
       statusElement.textContent =
         `OSV-Abfrage ${index + 1} von ${osvComponents.length}: ${component.name} ${component.version} …`;
       try {
         findings.push(...await CapybaraOsv.lookupPackage(component));
       } catch (error) {
+        osvFailed += 1;
         sourceErrors.push(`${component.name}: ${error.message}`);
       }
     }
@@ -367,18 +369,35 @@ async function scanWebsite() {
         headers,
         tls: tlsReport.metadata
       });
+      historyState = { state: "recorded" };
       clearHistoryButton.disabled = false;
       await renderHistory(url.origin, history);
     } catch (error) {
+      historyState = { state: "failed", detail: error.message };
       sourceErrors.push(`Lokale Historie: ${error.message}`);
-      CapybaraUI.renderFindings(
-        resultsElement,
-        allFindings.slice(0, 100),
-        queryable.length + osvComponents.length,
-        failed,
-        sourceErrors
-      );
+      renderFindingsSection();
     }
+
+    const advisoryMatches = allFindings.filter((finding) =>
+      finding.source === "Kuratiertes Advisory" ||
+      finding.relatedSources?.includes("Kuratiertes Advisory")
+    ).length;
+    const coverage = CapybaraCoverage.build({
+      mode: "website",
+      headers,
+      pageAnalysis: true,
+      tls: tlsReport,
+      nvd: { queries: queryable.length, failed },
+      osv: { queries: osvComponents.length, failed: osvFailed },
+      threatIntel: {
+        required: intel.findings.some((finding) => /^CVE-\d{4}-\d+$/i.test(finding.id ?? "")),
+        kev: intel.availability?.kev,
+        epss: intel.availability?.epss
+      },
+      advisory: { matches: advisoryMatches },
+      history: historyState
+    });
+    CapybaraUI.renderCoverage(coverageElement, coverage);
 
     const highCount = allFindings.filter((finding) =>
       ["kritisch", "hoch"].includes(finding.risk.level)
@@ -470,8 +489,19 @@ analyzeSbomButton.addEventListener("click", async () => {
       CapybaraRisk.prioritizeAll(confidenceFindings, { exposure: "sbom" }),
       observedAt
     );
+    const coverage = CapybaraCoverage.build({
+      mode: "sbom",
+      sbom: { format: parsed.format, components: parsed.components.length },
+      osv: { queries: queryableComponents.length, failed: osvFailed },
+      threatIntel: {
+        required: prioritized.some((finding) => /^CVE-\d{4}-\d+$/i.test(finding.id ?? "")),
+        kev: intel.availability?.kev,
+        epss: intel.availability?.epss
+      }
+    });
     CapybaraUI.renderComponents(componentsElement, parsed.components);
-    CapybaraUI.renderFindings(resultsElement, prioritized, parsed.components.length, 0, errors);
+    showFindings(prioritized, parsed.components.length, 0, errors);
+    CapybaraUI.renderCoverage(coverageElement, coverage);
     setReport({
       format: "capybara-sbom-report",
       version: 1,
@@ -480,6 +510,7 @@ analyzeSbomButton.addEventListener("click", async () => {
       sbomFormat: parsed.format,
       components: parsed.components,
       findings: prioritized,
+      coverage,
       sourceErrors: errors
     });
     sbomStatus.textContent =

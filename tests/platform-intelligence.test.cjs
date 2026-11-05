@@ -146,6 +146,10 @@ test("enriches CVEs with KEV and EPSS and marks valid no-match results", async (
   assert.equal(result.findings[0].epss.score, 0.42);
   assert.equal(result.findings[0].epss.percentile, 0.91);
   assert.equal(calls.length, 2);
+  assert.deepEqual(JSON.parse(JSON.stringify(result.availability)), {
+    kev: true,
+    epss: true
+  });
 
   const empty = await CapybaraThreatIntel.enrichFindings([
     { id: "CVE-2024-12345", product: "nginx" }
@@ -173,6 +177,10 @@ test("does not fetch threat feeds if there are no CVE identifiers", async () => 
   );
   assert.equal(called, false);
   assert.equal(result.errors.length, 0);
+  assert.deepEqual(JSON.parse(JSON.stringify(result.availability)), {
+    kev: null,
+    epss: null
+  });
 });
 
 test("parses nested CycloneDX and SPDX package URLs without confirming deployment", () => {
