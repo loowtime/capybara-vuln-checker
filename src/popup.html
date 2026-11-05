@@ -37,9 +37,33 @@
       <section id="tls" aria-label="TLS-Verbindungsprüfung"></section>
       <section id="server" aria-label="Erkannter Webserver"></section>
       <section id="components" aria-label="Erkannte CMS-Komponenten"></section>
+      <section id="third-parties" aria-label="Drittanbieter-Ressourcen"></section>
       <section id="posture" aria-label="Passive Sicherheitsprüfung"></section>
       <section id="history" aria-label="Lokaler Scan-Verlauf"></section>
+      <section id="finding-controls" class="finding-controls" aria-label="CVE-Liste filtern" hidden>
+        <div class="filter-grid">
+          <label for="finding-search">Suche
+            <input id="finding-search" type="search" placeholder="CVE, Produkt, Beschreibung" autocomplete="off">
+          </label>
+          <label for="finding-priority">Priorität
+            <select id="finding-priority">
+              <option value="">Alle</option>
+              <option value="kritisch">Kritisch</option>
+              <option value="hoch">Hoch</option>
+              <option value="mittel">Mittel</option>
+              <option value="niedrig">Niedrig</option>
+              <option value="unbestimmt">Unbestimmt</option>
+            </select>
+          </label>
+        </div>
+        <label class="filter-checkbox" for="finding-kev">
+          <input id="finding-kev" type="checkbox">
+          <span>Nur CISA-KEV-Treffer</span>
+        </label>
+        <p id="finding-filter-status" role="status" aria-live="polite"></p>
+      </section>
       <section id="results" aria-label="Mögliche CVEs"></section>
+      <section id="coverage" aria-label="Prüfabdeckung und Grenzen"></section>
       <p class="disclaimer">
         Die Prüfung ist passiv: keine Payloads, Login-Tests oder Exploits.
         Hinweise ersetzen kein vollständiges Audit und beweisen keine Ausnutzbarkeit.
@@ -50,6 +74,8 @@
     <script src="popup/scripts/technology-detection.js"></script>
     <script src="popup/scripts/cpe-matching.js"></script>
     <script src="popup/scripts/security-posture.js"></script>
+    <script src="popup/scripts/findings-view.js"></script>
+    <script src="popup/scripts/coverage.js"></script>
     <script src="popup/scripts/nvd.js"></script>
     <script src="popup/scripts/osv.js"></script>
     <script src="popup/scripts/threat-intelligence.js"></script>

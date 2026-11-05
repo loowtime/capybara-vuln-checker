@@ -324,25 +324,34 @@ window.CapybaraUI = {
     element.append(disclosure);
   },
 
-  renderFindings(element, findings, queryCount, failedCount, sourceErrors = []) {
+  renderFindings(element, findings, queryCount, failedCount, sourceErrors = [], meta = {}) {
+    const allFindings = Array.isArray(meta.allFindings) ? meta.allFindings : findings;
     element.replaceChildren();
     const heading = document.createElement("h2");
-    heading.textContent = `CVE- und Advisory-Kandidaten · ${findings.length}`;
+    heading.textContent = `CVE- und Advisory-Kandidaten · ${allFindings.length}`;
     element.append(heading);
 
-    if (findings.length) {
+    if (meta.filterActive) {
+      const filterNote = document.createElement("p");
+      filterNote.className = "filter-note";
+      filterNote.textContent =
+        `${findings.length} von ${allFindings.length} Kandidat(en) entsprechen dem aktuellen Filter. Der Berichtsexport enthält weiterhin alle Befunde.`;
+      element.append(filterNote);
+    }
+
+    if (allFindings.length) {
       const priority = document.createElement("div");
       priority.className = "finding-priority";
-      const rootHints = findings.filter((finding) =>
+      const rootHints = allFindings.filter((finding) =>
         finding.impactHints?.includes("Root-/Admin-Zugriff im Advisory erwähnt")
       ).length;
-      const remoteUnauthenticated = findings.filter((finding) =>
+      const remoteUnauthenticated = allFindings.filter((finding) =>
         finding.attackHints?.includes("Netzwerk-Vektor") &&
         (finding.attackHints.includes("Keine Privilegien erforderlich") ||
           finding.attackHints.includes("Keine Anmeldung erforderlich")) &&
         finding.attackHints.includes("Keine Nutzerinteraktion erforderlich")
       ).length;
-      const highSeverity = findings.filter((finding) =>
+      const highSeverity = allFindings.filter((finding) =>
         finding.score !== null && finding.score > 8
       ).length;
       const summary = document.createElement("strong");
@@ -363,9 +372,13 @@ window.CapybaraUI = {
       const note = document.createElement("details");
       note.className = "inline-note";
       const summary = document.createElement("summary");
-      summary.textContent = "Warum kein Treffer?";
+      summary.textContent = allFindings.length ? "Filter anpassen" : "Warum kein Treffer?";
       const explanation = document.createElement("p");
-      if (queryCount === 0) {
+      if (allFindings.length) {
+        empty.textContent = "Kein Treffer für den aktuellen Filter";
+        explanation.textContent =
+          "Passe Suche, Priorität oder KEV-Filter an, um wieder Kandidaten anzuzeigen. Die zugrunde liegenden Befunde und der Berichtsexport bleiben unverändert.";
+      } else if (queryCount === 0) {
         empty.textContent = "Keine CVE-Abfrage möglich";
         explanation.textContent =
           "Es wurde keine exakt unterstützte Produktversion erkannt. Die Dienstübersicht zeigt, welche Erkennung fehlt.";

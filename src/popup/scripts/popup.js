@@ -7,6 +7,13 @@ const componentsElement = document.querySelector("#components");
 const postureElement = document.querySelector("#posture");
 const resultsElement = document.querySelector("#results");
 const historyElement = document.querySelector("#history");
+const thirdPartiesElement = document.querySelector("#third-parties");
+const coverageElement = document.querySelector("#coverage");
+const findingsControls = document.querySelector("#finding-controls");
+const findingSearch = document.querySelector("#finding-search");
+const findingPriority = document.querySelector("#finding-priority");
+const findingKevOnly = document.querySelector("#finding-kev");
+const findingFilterStatus = document.querySelector("#finding-filter-status");
 const sbomFileInput = document.querySelector("#sbom-file");
 const sbomStatus = document.querySelector("#sbom-status");
 const analyzeSbomButton = document.querySelector("#analyze-sbom");
@@ -16,6 +23,7 @@ const printReportButton = document.querySelector("#print-report");
 const clearHistoryButton = document.querySelector("#clear-history");
 let activePage = null;
 let currentReport = null;
+let findingsState = null;
 
 authorizationCheckbox.addEventListener("change", () => {
   scanButton.disabled = !authorizationCheckbox.checked || !activePage;
@@ -115,16 +123,60 @@ function setReport(report) {
   printReportButton.disabled = !enabled;
 }
 
+function readFindingFilter() {
+  return {
+    query: findingSearch.value,
+    priority: findingPriority.value,
+    kevOnly: findingKevOnly.checked
+  };
+}
+
+function renderFindingsSection() {
+  if (!findingsState) return;
+  const criteria = readFindingFilter();
+  const visible = CapybaraFindingsView.filter(findingsState.findings, criteria);
+  const filterActive = CapybaraFindingsView.isActive(criteria);
+  CapybaraUI.renderFindings(
+    resultsElement,
+    visible,
+    findingsState.queryCount,
+    findingsState.failedCount,
+    findingsState.sourceErrors,
+    { allFindings: findingsState.findings, filterActive }
+  );
+  findingFilterStatus.textContent = filterActive
+    ? `${visible.length} von ${findingsState.findings.length} Kandidat(en) sichtbar.`
+    : "";
+}
+
+function showFindings(findings, queryCount, failedCount, sourceErrors) {
+  findingsState = { findings, queryCount, failedCount, sourceErrors };
+  findingsControls.hidden = findings.length === 0;
+  renderFindingsSection();
+}
+
+function resetFindingFilter() {
+  findingSearch.value = "";
+  findingPriority.value = "";
+  findingKevOnly.checked = false;
+  findingFilterStatus.textContent = "";
+}
+
 async function scanWebsite() {
   scanButton.disabled = true;
   statusElement.textContent = "Antwort-Header werden gelesen …";
   setReport(null);
+  findingsState = null;
+  findingsControls.hidden = true;
+  resetFindingFilter();
   serverElement.replaceChildren();
   tlsElement.replaceChildren();
   componentsElement.replaceChildren();
+  thirdPartiesElement.replaceChildren();
   postureElement.replaceChildren();
   historyElement.replaceChildren();
   resultsElement.replaceChildren();
+  coverageElement.replaceChildren();
 
   try {
     if (!activePage) {
@@ -380,15 +432,22 @@ analyzeSbomButton.addEventListener("click", async () => {
   if (!file) return;
   analyzeSbomButton.disabled = true;
   sbomStatus.textContent = "SBOM wird lokal eingelesen …";
+  findingsState = null;
+  findingsControls.hidden = true;
+  resetFindingFilter();
+  thirdPartiesElement.replaceChildren();
+  coverageElement.replaceChildren();
   try {
     const parsed = CapybaraSbom.parse(await file.text());
     const errors = [];
     const queryableComponents = parsed.components.filter((item) => item.osvPackage && item.version);
     let findings = [];
+    let osvFailed = 0;
     try {
       const results = await CapybaraOsv.lookupPackages(queryableComponents);
       findings = results.flat();
     } catch (error) {
+      osvFailed = queryableComponents.length;
       errors.push(error.message);
     }
     const intel = await CapybaraThreatIntel.enrichFindings(findings);
@@ -442,8 +501,16 @@ exportCsvButton.addEventListener("click", () => {
   }
 });
 printReportButton.addEventListener("click", () => {
-  if (currentReport) window.print();
+  if (!currentReport) return;
+  if (CapybaraFindingsView.isActive(readFindingFilter())) {
+    resetFindingFilter();
+    renderFindingsSection();
+  }
+  window.print();
 });
+for (const control of [findingSearch, findingPriority, findingKevOnly]) {
+  control.addEventListener("input", renderFindingsSection);
+}
 clearHistoryButton.addEventListener("click", async () => {
   if (!activePage) return;
   try {
