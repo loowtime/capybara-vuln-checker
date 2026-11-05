@@ -120,6 +120,76 @@ window.CapybaraUI = {
     element.append(disclosure);
   },
 
+  renderThirdParties(element, thirdParties) {
+    element.replaceChildren();
+    const items = Array.isArray(thirdParties) ? thirdParties : [];
+    if (!items.length) return;
+
+    const disclosure = document.createElement("details");
+    disclosure.className = "section-disclosure";
+    const summary = document.createElement("summary");
+    summary.textContent = `Drittanbieter-Ressourcen · ${items.length} Herkunft(en)`;
+    const intro = document.createElement("p");
+    intro.className = "third-party-intro";
+    intro.textContent =
+      "Aggregiert aus bereits geladenen Skripten, Stylesheets und Frames. Es wurden keine zusätzlichen Anfragen gesendet; angezeigt wird nur der Ursprung, kein vollständiger Pfad.";
+    disclosure.append(summary, intro);
+
+    for (const item of items) {
+      const box = document.createElement("div");
+      box.className = "third-party";
+      const title = document.createElement("strong");
+      title.textContent = item.origin;
+      const detail = document.createElement("p");
+      const missingSri = (item.scriptsWithoutSri ?? 0) + (item.stylesheetsWithoutSri ?? 0);
+      const notes = [];
+      if (missingSri) notes.push(`${missingSri} ohne SRI`);
+      if (item.framesWithoutSandbox) {
+        notes.push(`${item.framesWithoutSandbox} Frame(s) ohne sandbox`);
+      }
+      detail.textContent =
+        `${item.scripts} Skript(e) · ${item.stylesheets} Stylesheet(s) · ${item.frames} Frame(s)` +
+        (notes.length ? ` · ${notes.join(" · ")}` : "");
+      box.append(title, detail);
+      disclosure.append(box);
+    }
+    element.append(disclosure);
+  },
+
+  renderCoverage(element, coverage) {
+    element.replaceChildren();
+    const checks = Array.isArray(coverage?.checks) ? coverage.checks : [];
+    if (!checks.length) return;
+
+    const disclosure = document.createElement("details");
+    disclosure.className = "section-disclosure coverage";
+    const summary = document.createElement("summary");
+    summary.textContent = `Prüfabdeckung & Grenzen · ${checks.length} Prüfbereiche`;
+    const intro = document.createElement("p");
+    intro.className = "coverage-intro";
+    intro.textContent =
+      "Zeigt, welche passiven Quellen und Abfragen tatsächlich ausgewertet wurden. Auch vollständige Abdeckung bestätigt keine Sicherheit; ein Quellenfehler macht das Ergebnis unvollständig.";
+    disclosure.append(summary, intro);
+
+    for (const check of checks) {
+      const item = document.createElement("div");
+      item.className = `coverage-item coverage-${check.state}`;
+      const head = document.createElement("div");
+      head.className = "coverage-head";
+      const label = document.createElement("strong");
+      label.textContent = check.label;
+      const state = document.createElement("span");
+      state.className = "coverage-state";
+      state.textContent = check.statusLabel;
+      head.append(label, state);
+      const detail = document.createElement("p");
+      detail.textContent = check.detail;
+      item.append(head, detail);
+      disclosure.append(item);
+    }
+    element.append(disclosure);
+  },
+
   renderServer(element, headers, inspection) {
     element.replaceChildren();
     const heading = document.createElement("h2");

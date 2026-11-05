@@ -365,7 +365,23 @@ window.CapybaraDetection = (() => {
     let externalStylesheetsWithoutSri = 0;
     let externalIframeCount = 0;
     let externalIframesWithoutSandbox = 0;
-    const externalOrigins = new Set();
+    const externalResources = new Map();
+    const trackExternal = (origin) => {
+      let entry = externalResources.get(origin);
+      if (!entry) {
+        entry = {
+          origin,
+          scripts: 0,
+          stylesheets: 0,
+          frames: 0,
+          scriptsWithoutSri: 0,
+          stylesheetsWithoutSri: 0,
+          framesWithoutSandbox: 0
+        };
+        externalResources.set(origin, entry);
+      }
+      return entry;
+    };
     for (const element of resources) {
       const rawUrl = element.src || element.href;
       if (!rawUrl) continue;
@@ -382,26 +398,38 @@ window.CapybaraDetection = (() => {
         resourceUrl.origin !== location.origin
       ) {
         if (element.tagName === "SCRIPT") {
-          externalOrigins.add(resourceUrl.origin);
+          const entry = trackExternal(resourceUrl.origin);
+          entry.scripts += 1;
           externalScriptCount += 1;
-          if (!element.integrity) externalScriptsWithoutSri += 1;
+          if (!element.integrity) {
+            entry.scriptsWithoutSri += 1;
+            externalScriptsWithoutSri += 1;
+          }
         } else if (element.tagName === "LINK" &&
           element.rel?.toLowerCase().split(/\s+/).includes("stylesheet")) {
-          externalOrigins.add(resourceUrl.origin);
+          const entry = trackExternal(resourceUrl.origin);
+          entry.stylesheets += 1;
           externalStylesheetCount += 1;
-          if (!element.integrity) externalStylesheetsWithoutSri += 1;
+          if (!element.integrity) {
+            entry.stylesheetsWithoutSri += 1;
+            externalStylesheetsWithoutSri += 1;
+          }
         } else if (element.tagName === "IFRAME") {
-          externalOrigins.add(resourceUrl.origin);
+          const entry = trackExternal(resourceUrl.origin);
+          entry.frames += 1;
           externalIframeCount += 1;
-          if (!element.hasAttribute("sandbox")) externalIframesWithoutSandbox += 1;
+          if (!element.hasAttribute("sandbox")) {
+            entry.framesWithoutSandbox += 1;
+            externalIframesWithoutSandbox += 1;
+          }
         }
       }
     }
-    if (externalOrigins.size) {
+    if (externalResources.size) {
       security.push({
         level: "info",
         title: "Drittanbieter-Ressourcen erkannt",
-        detail: `${externalOrigins.size} externe Herkunft(en) über ${externalScriptCount} Skript(e), ${externalStylesheetCount} Stylesheet(s) und ${externalIframeCount} Frame(s). Prüfe Anbieter, Zweck und CSP-Freigaben; es wurden keine zusätzlichen Anfragen gesendet.`
+        detail: `${externalResources.size} externe Herkunft(en) über ${externalScriptCount} Skript(e), ${externalStylesheetCount} Stylesheet(s) und ${externalIframeCount} Frame(s). Prüfe Anbieter, Zweck und CSP-Freigaben; es wurden keine zusätzlichen Anfragen gesendet.`
       });
     }
     if (mixedContentCount) {
@@ -589,7 +617,13 @@ window.CapybaraDetection = (() => {
       });
     }
 
-    return { components: [...components.values()], security };
+    const thirdParties = [...externalResources.values()]
+      .sort((left, right) => {
+        const total = (item) => item.scripts + item.stylesheets + item.frames;
+        return total(right) - total(left) || left.origin.localeCompare(right.origin);
+      });
+
+    return { components: [...components.values()], security, thirdParties };
   }
 
   async function inspectActivePage(tabId) {

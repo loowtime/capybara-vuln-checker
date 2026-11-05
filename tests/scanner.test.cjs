@@ -231,6 +231,24 @@ test("audits third-party assets, frames, and form destinations without requests"
   assert(result.security.some((finding) =>
     finding.title === "Formulare mit Cross-Origin-Ziel"
   ));
+
+  assert.equal(result.thirdParties.length, 3);
+  const scriptOrigin = result.thirdParties.find((item) =>
+    item.origin === "https://cdn.example.test"
+  );
+  assert.equal(scriptOrigin.scripts, 1);
+  assert.equal(scriptOrigin.scriptsWithoutSri, 1);
+  const styleOrigin = result.thirdParties.find((item) =>
+    item.origin === "https://styles.example.test"
+  );
+  assert.equal(styleOrigin.stylesheets, 1);
+  assert.equal(styleOrigin.stylesheetsWithoutSri, 0);
+  const frameOrigin = result.thirdParties.find((item) =>
+    item.origin === "https://embed.example.test"
+  );
+  assert.equal(frameOrigin.frames, 1);
+  assert.equal(frameOrigin.framesWithoutSandbox, 1);
+  assert.equal(JSON.stringify(result.thirdParties).includes("/app.js"), false);
 });
 
 test("detects sensitive form fields submitted with GET or to HTTP without reading values", async () => {

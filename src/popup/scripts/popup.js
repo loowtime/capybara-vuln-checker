@@ -180,6 +180,7 @@ async function scanWebsite() {
     const headers = response.headers ?? {};
     const inspection = CapybaraDetection.inspectResponseHeaders(headers);
     const components = pageInspection.components;
+    const thirdParties = pageInspection.thirdParties ?? [];
     inspection.products = CapybaraCpeMatcher.assessAll(
       mergeProducts(inspection.products, components)
     );
@@ -290,16 +291,17 @@ async function scanWebsite() {
 
     CapybaraUI.renderServer(serverElement, headers, inspection);
     CapybaraUI.renderComponents(componentsElement, components);
+    CapybaraUI.renderThirdParties(thirdPartiesElement, thirdParties);
     CapybaraUI.renderPosture(postureElement, posture);
-    CapybaraUI.renderFindings(
-      resultsElement,
+    showFindings(
       allFindings.slice(0, 100),
       queryable.length + osvComponents.length,
       failed,
       sourceErrors
     );
 
-    let history;
+    let history = null;
+    let historyState = { state: "skipped" };
     try {
       history = await CapybaraHistory.record(url.origin, {
         scannedAt: observedAt,
@@ -341,8 +343,10 @@ async function scanWebsite() {
         )
       ], { observedAt }),
       tls: tlsReport,
+      thirdParties,
       posture,
       findings: allFindings,
+      coverage,
       history: history ?? null,
       sourceErrors
     };
